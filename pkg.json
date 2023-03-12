@@ -1,0 +1,5 @@
+{
+	"assets": ["public/**/*", "node_modules/axios/dist/node/axios.cjs"],
+	"scripts": ["build/index.js"],
+	"targets": ["win"]
+}

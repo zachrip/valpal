@@ -1,0 +1,8 @@
+node_modules
+
+/.cache
+/build
+/dist
+/public/build
+.env
+user*.json
