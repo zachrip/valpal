@@ -1,8 +1,6 @@
 import https from 'https';
-import events from 'events';
 
 import axios from 'axios';
-import { getUserConfig, randomItem } from 'app/utils.server';
 import {
 	EntitlementsByCategory,
 	EntitlementsByType,
@@ -12,7 +10,6 @@ import {
 	EquippedSpray,
 	ValorantLoadout,
 	Shards,
-	regionToShard,
 	PregamePlayer,
 	PregameMatch,
 } from 'types';
@@ -50,7 +47,7 @@ function getPartyServiceUrl(region: Regions, shard: Shards) {
 	return `https://glz-${region}-1.${shard}.a.pvp.net`;
 }
 
-function generateRequestHeaders(
+export function generateRequestHeaders(
 	args: {
 		accessToken: string;
 		entitlementsToken: string;
@@ -92,12 +89,13 @@ export class User {
 		entitlementsToken: string;
 		userId: string;
 		region: Regions;
+		shard: Shards;
 	}) {
 		this.accessToken = args.accessToken;
 		this.entitlementsToken = args.entitlementsToken;
 		this.userId = args.userId;
 		this.region = args.region;
-		this.shard = regionToShard[this.region];
+		this.shard = args.shard;
 		this.requestHeaders = generateRequestHeaders({
 			accessToken: this.accessToken,
 			entitlementsToken: this.entitlementsToken,

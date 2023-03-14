@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { isAxiosError } from 'axios';
 import fsPromise from 'fs/promises';
 import path from 'path';
 import https from 'https';
@@ -6,7 +6,8 @@ import https from 'https';
 import { v4 as uuidv4 } from 'uuid';
 
 import type { Loadout, UserConfig } from '~/utils';
-import { User } from 'server/userman';
+import { generateRequestHeaders, User } from 'server/userman';
+import { Regions, Shards } from 'types';
 
 async function exists(filename: string) {
 	try {
@@ -123,6 +124,14 @@ const httpClient = axios.create({
 	}),
 });
 
+declare global {
+	var userShardRegionCache: Map<string, { region: Regions; shard: Shards }>;
+}
+
+global.userShardRegionCache =
+	global.userShardRegionCache ||
+	new Map<string, { region: Regions; shard: Shards }>();
+
 export async function getUser() {
 	try {
 		const lockfile = await getLockfile();
@@ -149,23 +158,70 @@ export async function getUser() {
 			})
 		).data;
 
-		const region = (
-			await httpClient.get(
-				`https://127.0.0.1:${port}/riotclient/region-locale`,
-				{
-					headers: {
-						Authorization: `Basic ${Buffer.from(`riot:${password}`).toString(
-							'base64'
-						)}`,
-					},
+		const shardRegionMap = [
+			[Shards.NorthAmerica, Regions.NorthAmerica],
+			[Shards.NorthAmerica, Regions.LatinAmerica],
+			[Shards.NorthAmerica, Regions.Brazil],
+			[Shards.Europe, Regions.Europe],
+			[Shards.AsiaPacific, Regions.AsiaPacific],
+			[Shards.Korea, Regions.Korea],
+		] as const;
+
+		const res =
+			global.userShardRegionCache.get(tokens.subject) ||
+			(await (async function findRegionAndShard() {
+				for (const [shard, region] of shardRegionMap) {
+					try {
+						const response = await httpClient.get(
+							`https://glz-${region}-1.${shard}.a.pvp.net/parties/v1/players/${tokens.subject}`,
+							{
+								headers: generateRequestHeaders({
+									accessToken: tokens.accessToken,
+									entitlementsToken: tokens.token,
+								}),
+							}
+						);
+
+						if (!response.data.Subject) {
+							continue;
+						}
+
+						return {
+							region,
+							shard,
+						};
+					} catch (e) {
+						if (isAxiosError(e)) {
+							switch (e.response?.status) {
+								case 404: {
+									console.log('404, continuing');
+									break;
+								}
+								default: {
+									console.warn(
+										'Caught error trying to get user for region/shard detection',
+										e
+									);
+									break;
+								}
+							}
+						}
+					}
 				}
-			)
-		).data.region;
+			})());
+
+		if (!res) {
+			return null;
+		}
+
+		console.log('Found user region and shard', res);
+		userShardRegionCache.set(tokens.subject, res);
 
 		return new User({
 			accessToken: tokens.accessToken,
 			entitlementsToken: tokens.token,
-			region,
+			region: res.region,
+			shard: res.shard,
 			userId: tokens.subject,
 		});
 	} catch (e) {
