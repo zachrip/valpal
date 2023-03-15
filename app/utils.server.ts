@@ -194,12 +194,14 @@ export async function getUser() {
 						if (isAxiosError(e)) {
 							switch (e.response?.status) {
 								case 404: {
-									console.log('404, continuing');
+									console.log('tried', region, shard, 'got 404, continuing');
 									break;
 								}
 								default: {
 									console.warn(
 										'Caught error trying to get user for region/shard detection',
+										region,
+										shard,
 										e
 									);
 									break;

@@ -113,108 +113,134 @@ export class AppManager {
 	};
 
 	async connect() {
-		console.log('Attempting to connect to websocket');
+		try {
+			console.log('Attempting to connect to websocket');
 
-		const lockfile = await getLockfile();
+			const lockfile = await getLockfile();
 
-		if (!lockfile) {
-			console.log('Lockfile not found');
-			setTimeout(() => {
-				this.connect();
-			}, 5000);
-			return;
-		}
-
-		const { port, password } = lockfile;
-
-		const ws = new WebSocket(`wss://riot:${password}@localhost:${port}`, {
-			rejectUnauthorized: false,
-		});
-
-		let user: User;
-
-		const matchCharacterSelectionStates = new Map<string, string>();
-
-		ws.on('open', async () => {
-			console.log('Connected to websocket');
-
-			user = (await getUser())!;
-
-			ws.send(JSON.stringify([5, 'OnJsonApiEvent']));
-		});
-
-		let abortController: AbortController = new AbortController();
-
-		ws.on('message', async (data) => {
-			const parsed = tryParseJson<[number, string, object]>(data.toString());
-
-			if (!parsed) {
+			if (!lockfile) {
+				console.log('Lockfile not found');
+				setTimeout(() => {
+					this.connect();
+				}, 5000);
 				return;
 			}
 
-			const [type, event, payload] = parsed;
+			const { port, password } = lockfile;
 
-			if (type !== 8 || event !== 'OnJsonApiEvent') {
-				return;
-			}
+			const ws = new WebSocket(`wss://riot:${password}@localhost:${port}`, {
+				rejectUnauthorized: false,
+			});
 
-			const { uri, eventType } = payload as {
-				uri: string;
-				eventType: string;
-				data: object;
-			};
+			let user: User;
 
-			const uriMatch = uri.match(/\/pregame\/v1\/matches\/(.*)/);
-			if (eventType === 'Create' && uriMatch && uriMatch[1]) {
-				const matchId = uriMatch[1];
-				console.log('Match found:', matchId);
+			const matchCharacterSelectionStates = new Map<string, string>();
 
-				const existingState = matchCharacterSelectionStates.get(matchId);
+			ws.on('open', async () => {
+				try {
+					console.log('Connected to websocket');
 
-				if (existingState === 'locked') {
-					console.log('Match already locked, no need to process');
-					return;
+					user = (await getUser())!;
+
+					ws.send(JSON.stringify([5, 'OnJsonApiEvent']));
+				} catch (e) {
+					console.warn('Caught error in websocket open handler', e);
 				}
+			});
 
-				const match = await user.getPregame();
+			let abortController: AbortController = new AbortController();
 
-				const player = match.AllyTeam.Players.find(
-					(player) => player.Subject === user.userId
-				);
-
-				const newState = player?.CharacterSelectionState;
-
-				if (
-					newState &&
-					newState !== matchCharacterSelectionStates.get(matchId)
-				) {
-					if (newState === 'locked' && this.isAutoShuffleEnabled) {
-						this.equip(
-							user,
-							this.isAgentDetectionEnabled ? player.CharacterID : undefined
-						);
+			ws.on('message', async (data) => {
+				try {
+					if (!user) {
+						return;
 					}
 
-					matchCharacterSelectionStates.set(matchId, newState);
+					const parsed = tryParseJson<[number, string, object]>(
+						data.toString()
+					);
+
+					if (!parsed) {
+						return;
+					}
+
+					const [type, event, payload] = parsed;
+
+					if (type !== 8 || event !== 'OnJsonApiEvent') {
+						return;
+					}
+
+					const { uri, eventType } = payload as {
+						uri: string;
+						eventType: string;
+						data: object;
+					};
+
+					const uriMatch = uri.match(/\/pregame\/v1\/matches\/(.*)/);
+					if (eventType === 'Create' && uriMatch && uriMatch[1]) {
+						const matchId = uriMatch[1];
+						console.log('Match found:', matchId);
+
+						const existingState = matchCharacterSelectionStates.get(matchId);
+
+						if (existingState === 'locked') {
+							console.log('Match already locked, no need to process');
+							return;
+						}
+
+						const match = await user.getPregame();
+
+						const player = match.AllyTeam.Players.find(
+							(player) => player.Subject === user.userId
+						);
+
+						const newState = player?.CharacterSelectionState;
+
+						if (
+							newState &&
+							newState !== matchCharacterSelectionStates.get(matchId)
+						) {
+							if (newState === 'locked' && this.isAutoShuffleEnabled) {
+								this.equip(
+									user,
+									this.isAgentDetectionEnabled ? player.CharacterID : undefined
+								);
+							}
+
+							matchCharacterSelectionStates.set(matchId, newState);
+						}
+					}
+				} catch (e) {
+					console.warn('Caught error in websocket message handler:', e);
 				}
-			}
-		});
+			});
 
-		ws.on('close', () => {
-			abortController?.abort();
-			console.log('Disconnected from websocket');
-			setTimeout(() => {
-				this.connect();
-			}, 5000);
-		});
+			ws.on('close', () => {
+				try {
+					abortController?.abort();
+					console.log('Disconnected from websocket');
+					setTimeout(() => {
+						this.connect();
+					}, 5000);
+				} catch (e) {
+					console.warn('Caught error in websocket close handler:', e);
+				}
+			});
 
-		ws.on('error', (err) => {
-			abortController?.abort();
-			console.log('Error:', err);
-			setTimeout(() => {
-				this.connect();
-			}, 5000);
-		});
+			ws.on('error', (err) => {
+				try {
+					abortController?.abort();
+					console.log('Error:', err);
+					setTimeout(() => {
+						this.connect();
+					}, 5000);
+				} catch (e) {
+					console.warn('Caught error in websocket error handler:', e);
+				}
+			});
+		} catch (e) {
+			console.warn('Caught error in connect method:', e);
+		}
 	}
 
 	equip = async (user: User, agentId?: string) => {
