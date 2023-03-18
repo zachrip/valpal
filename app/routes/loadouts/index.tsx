@@ -281,13 +281,20 @@ export default function Index() {
 							</h2>
 							<div className="flex flex-row mt-2 items-stretch">
 								<div className="flex-col">
-									<SwitchImage
-										className="object-contain"
-										images={loadout.playerCards.map((c) => ({
-											src: c.largeArt,
-											alt: c.displayName,
-										}))}
-									/>
+									<div
+										className="w-48"
+										style={{
+											aspectRatio: '268 / 640',
+										}}
+									>
+										<SwitchImage
+											className="object-contain w-full h-full"
+											images={loadout.playerCards.map((c) => ({
+												src: c.largeArt,
+												alt: c.displayName,
+											}))}
+										/>
+									</div>
 									<Gallery
 										items={loadout.playerTitles.map((t) => ({
 											...t,

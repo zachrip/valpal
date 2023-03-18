@@ -85,11 +85,10 @@ export async function loader({ params }: LoaderArgs) {
 
 	const selectedPlayerTitles = loadout.playerTitleIds;
 	const ownedPlayerTitles = valorantData.playerTitles
-		.filter(
-			(playerTitle) =>
-				entitlements.player_title.some(
-					(entitlement) => entitlement.ItemID === playerTitle.uuid
-				) || !playerTitle.isHiddenIfNotOwned
+		.filter((playerTitle) =>
+			entitlements.player_title.some(
+				(entitlement) => entitlement.ItemID === playerTitle.uuid
+			)
 		)
 		.sort((a, b) =>
 			(a.titleText || 'default').localeCompare(b.titleText || 'Default')

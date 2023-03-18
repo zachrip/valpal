@@ -162,6 +162,7 @@ export async function getUser() {
 			[Shards.NorthAmerica, Regions.NorthAmerica],
 			[Shards.NorthAmerica, Regions.LatinAmerica],
 			[Shards.NorthAmerica, Regions.Brazil],
+			[Shards.PBE, Regions.NorthAmerica],
 			[Shards.Europe, Regions.Europe],
 			[Shards.AsiaPacific, Regions.AsiaPacific],
 			[Shards.Korea, Regions.Korea],
@@ -169,7 +170,10 @@ export async function getUser() {
 
 		const res =
 			global.userShardRegionCache.get(tokens.subject) ||
-			(await (async function findRegionAndShard() {
+			(await (async function findRegionAndShard(attempts = 0): Promise<{
+				region: Regions;
+				shard: Shards;
+			} | null> {
 				for (const [shard, region] of shardRegionMap) {
 					try {
 						const response = await httpClient.get(
@@ -210,6 +214,14 @@ export async function getUser() {
 						}
 					}
 				}
+
+				if (attempts < 5) {
+					console.log('Failed to find user region and shard, retrying in 2.5s');
+					await new Promise((resolve) => setTimeout(resolve, 2500));
+					return findRegionAndShard(attempts + 1);
+				}
+
+				return null;
 			})());
 
 		if (!res) {

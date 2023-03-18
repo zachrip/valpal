@@ -164,8 +164,9 @@ export async function loader({ params }: LoaderArgs) {
 	});
 }
 
-export default function NewSkin() {
-	const { skin, template, ownedBuddies } = useLoaderData<typeof loader>();
+export default function EditSkin() {
+	const { skin, template, ownedBuddies, weapon } =
+		useLoaderData<typeof loader>();
 	const navigate = useNavigate();
 	const params = useParams();
 
@@ -235,39 +236,43 @@ export default function NewSkin() {
 									</div>
 								))}
 							</div>
-							<h1 className="text-xl mt-4">Buddies</h1>
-							<div className="grid grid-cols-4 gap-2 mt-2 overflow-auto max-h-96">
-								{ownedBuddies.map((buddy) => (
-									<div key={buddy.buddyId + buddy.levelId}>
-										<input
-											id={buddy.buddyId + buddy.levelId}
-											name={`buddies[${buddy.buddyId}][${buddy.levelId}]`}
-											type="checkbox"
-											className="hidden peer"
-											defaultChecked={template.buddies.some(
-												(b) =>
-													b.id === buddy.buddyId &&
-													b.levelIds.includes(buddy.levelId)
-											)}
-										/>
-										<label
-											htmlFor={buddy.buddyId + buddy.levelId}
-											className="block w-full h-full p-2 peer-checked:bg-slate-500 hover:bg-slate-500 rounded-md"
-										>
-											<div className="w-full aspect-square">
-												<img
-													className="w-full h-full object-contain"
-													src={buddy.displayIcon}
-													alt={buddy.displayName}
+							{weapon.uuid !== '2f59173c-4bed-b6c3-2191-dea9b58be9c7' && (
+								<>
+									<h1 className="text-xl mt-4">Buddies</h1>
+									<div className="grid grid-cols-4 gap-2 mt-2 overflow-auto max-h-96">
+										{ownedBuddies.map((buddy) => (
+											<div key={buddy.buddyId + buddy.levelId}>
+												<input
+													id={buddy.buddyId + buddy.levelId}
+													name={`buddies[${buddy.buddyId}][${buddy.levelId}]`}
+													type="checkbox"
+													className="hidden peer"
+													defaultChecked={template.buddies.some(
+														(b) =>
+															b.id === buddy.buddyId &&
+															b.levelIds.includes(buddy.levelId)
+													)}
 												/>
+												<label
+													htmlFor={buddy.buddyId + buddy.levelId}
+													className="block w-full h-full p-2 peer-checked:bg-slate-500 hover:bg-slate-500 rounded-md"
+												>
+													<div className="w-full aspect-square">
+														<img
+															className="w-full h-full object-contain"
+															src={buddy.displayIcon}
+															alt={buddy.displayName}
+														/>
+													</div>
+													<h2 className="text-sm text-white font-bold text-center whitespace-nowrap overflow-hidden text-ellipsis mt-2">
+														{buddy.displayName.slice(0, -6)}
+													</h2>
+												</label>
 											</div>
-											<h2 className="text-sm text-white font-bold text-center whitespace-nowrap overflow-hidden text-ellipsis mt-2">
-												{buddy.displayName.slice(0, -6)}
-											</h2>
-										</label>
+										))}
 									</div>
-								))}
-							</div>
+								</>
+							)}
 							<div>
 								<button
 									type="submit"
