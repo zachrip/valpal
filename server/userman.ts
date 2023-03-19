@@ -30,15 +30,6 @@ const httpClient = axios.create({
 	httpsAgent: agent,
 });
 
-const parseTokensFromUrl = (uri: string) => {
-	const url = new URL(uri);
-
-	return {
-		accessToken: url.searchParams.get('access_token')!,
-		idToken: url.searchParams.get('id_token')!,
-	};
-};
-
 function getPlayerDataServiceUrl(region: Regions) {
 	return `https://pd.${region}.a.pvp.net`;
 }

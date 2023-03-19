@@ -132,16 +132,11 @@ export class AppManager {
 				rejectUnauthorized: false,
 			});
 
-			let user: User;
-
 			const matchCharacterSelectionStates = new Map<string, string>();
 
 			ws.on('open', async () => {
 				try {
 					console.log('Connected to websocket');
-
-					user = (await getUser())!;
-
 					ws.send(JSON.stringify([5, 'OnJsonApiEvent']));
 				} catch (e) {
 					console.warn('Caught error in websocket open handler', e);
@@ -152,10 +147,6 @@ export class AppManager {
 
 			ws.on('message', async (data) => {
 				try {
-					if (!user) {
-						return;
-					}
-
 					const parsed = tryParseJson<[number, string, object]>(
 						data.toString()
 					);
@@ -185,6 +176,13 @@ export class AppManager {
 
 						if (existingState === 'locked') {
 							console.log('Match already locked, no need to process');
+							return;
+						}
+
+						const user = await getUser();
+
+						if (!user) {
+							console.log('User not found');
 							return;
 						}
 
@@ -228,15 +226,7 @@ export class AppManager {
 			});
 
 			ws.on('error', (err) => {
-				try {
-					abortController?.abort();
-					console.log('Error:', err);
-					setTimeout(() => {
-						this.connect();
-					}, 5000);
-				} catch (e) {
-					console.warn('Caught error in websocket error handler:', e);
-				}
+				console.warn('WS error:', err);
 			});
 		} catch (e) {
 			console.warn('Caught error in connect method:', e);

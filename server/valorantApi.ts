@@ -1,5 +1,3 @@
-import https from 'https';
-
 import axios from 'axios';
 import type {
 	Buddy,
@@ -10,20 +8,7 @@ import type {
 	PlayerTitle,
 } from 'types';
 
-const agent = new https.Agent({
-	ciphers: [
-		'TLS_CHACHA20_POLY1305_SHA256',
-		'TLS_AES_128_GCM_SHA256',
-		'TLS_AES_256_GCM_SHA384',
-		'TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256',
-	].join(':'),
-	honorCipherOrder: true,
-	minVersion: 'TLSv1.2',
-});
-
-const httpClient = axios.create({
-	httpsAgent: agent,
-});
+const httpClient = axios.create();
 
 async function getWeapons() {
 	const { data } = await httpClient.get<{
