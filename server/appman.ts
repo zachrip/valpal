@@ -289,10 +289,12 @@ export class AppManager {
 		]);
 
 		const buddyEntitlements = entitlements.buddy.reduce((acc, buddy) => {
-			const existing = acc.get(buddy.ItemID) || 0;
-			acc.set(buddy.ItemID, existing + 2);
+			const existing = acc.get(buddy.ItemID) || [];
+			existing.push(buddy.InstanceID);
+
+			acc.set(buddy.ItemID, existing);
 			return acc;
-		}, new Map<string, number>());
+		}, new Map<string, string[]>());
 
 		const loadoutToEquip: ValorantLoadout = {
 			...existingLoadout,
@@ -349,18 +351,14 @@ export class AppManager {
 
 					const buddyLevelId = randomItem(buddy.levelIds);
 
-					const remainingUses = buddyEntitlements.get(buddyLevelId) || 0;
+					const consumedBuddy = (
+						buddyEntitlements.get(buddyLevelId) || []
+					).shift();
 
-					const entitlement = entitlements.buddy.find(
-						(entitlement) => entitlement.ItemID === buddyLevelId
-					);
-
-					if (!entitlement || remainingUses === 0) return null;
-
-					buddyEntitlements.set(buddyLevelId, remainingUses - 1);
+					if (!consumedBuddy) return null;
 
 					return {
-						CharmInstanceID: entitlement.InstanceID,
+						CharmInstanceID: consumedBuddy,
 						CharmID: buddy.id,
 						CharmLevelID: buddyLevelId,
 					};

@@ -7,7 +7,6 @@ import { z } from 'zod';
 
 import type { WeaponCategory } from 'types';
 import { Gallery } from '~/components/Gallery';
-import { SwitchImage } from '~/components/SwitchImage';
 
 import {
 	categoryCanonicalNameMap,
