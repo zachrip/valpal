@@ -269,7 +269,10 @@ export class AppManager {
 				`(${agent.displayName})`
 			);
 			return agentSpecificLoadouts;
-		})(config.loadouts, agentId);
+		})(
+			config.loadouts.filter((loadout) => loadout.enabled),
+			agentId
+		);
 
 		if (loadoutsToConsider.length === 0) {
 			console.log('No loadouts, not equipping.');
