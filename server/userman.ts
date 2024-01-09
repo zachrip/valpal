@@ -1,7 +1,7 @@
 import https from 'https';
 
 import axios from 'axios';
-import {
+import type {
 	EntitlementsByCategory,
 	EntitlementsByType,
 	Gun,
@@ -12,8 +12,9 @@ import {
 	Shards,
 	PregamePlayer,
 	PregameMatch,
+	Regions,
 } from 'types';
-import { entitlementIdToTypeMap, Regions } from 'types';
+import { entitlementIdToTypeMap } from 'types';
 
 const agent = new https.Agent({
 	ciphers: [
@@ -48,7 +49,7 @@ export function generateRequestHeaders(
 	const defaultHeaders = {
 		Authorization: `Bearer ${args.accessToken}`,
 		'X-Riot-Entitlements-JWT': args.entitlementsToken,
-		'X-Riot-ClientVersion': 'release-05.12-shipping-21-808353',
+		'X-Riot-ClientVersion': 'release-08.00-shipping-14-2191955',
 		'X-Riot-ClientPlatform': btoa(
 			JSON.stringify({
 				platformType: 'PC',

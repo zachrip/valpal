@@ -45,7 +45,7 @@ export const action = async ({ request, params }: LoaderArgs) => {
 			const { name, agents } = updateSchema.parse(formData);
 
 			loadout.name = name;
-			(loadout.agentIds = Object.entries(agents || {}).reduce<Array<string>>(
+			loadout.agentIds = Object.entries(agents || {}).reduce<Array<string>>(
 				(acc, next) => {
 					if (next[1]) {
 						acc.push(next[0]);
@@ -53,8 +53,8 @@ export const action = async ({ request, params }: LoaderArgs) => {
 					return acc;
 				},
 				[]
-			)),
-				await saveUserConfig(user.userId, config);
+			);
+			await saveUserConfig(user.userId, config);
 			return redirect(`/loadouts/${loadoutId}`);
 		}
 		default: {
@@ -105,22 +105,29 @@ export const loader = async ({ params }: LoaderArgs) => {
 				(id) => valorantData.playerTitles.find((title) => title.uuid === id)!
 			),
 			sprays: {
-				preRound: (loadout.sprayIds.preRound.length
-					? loadout.sprayIds.preRound
+				top: (loadout.sprayIds.top.length
+					? loadout.sprayIds.top
 					: ['0a6db78c-48b9-a32d-c47a-82be597584c1']
 				).map(
 					(sprayId) =>
 						valorantData.sprays.find((spray) => spray.uuid === sprayId)!
 				),
-				midRound: (loadout.sprayIds.midRound.length
-					? loadout.sprayIds.midRound
+				right: (loadout.sprayIds.right.length
+					? loadout.sprayIds.right
 					: ['0a6db78c-48b9-a32d-c47a-82be597584c1']
 				).map(
 					(sprayId) =>
 						valorantData.sprays.find((spray) => spray.uuid === sprayId)!
 				),
-				postRound: (loadout.sprayIds.postRound.length
-					? loadout.sprayIds.postRound
+				bottom: (loadout.sprayIds.bottom.length
+					? loadout.sprayIds.bottom
+					: ['0a6db78c-48b9-a32d-c47a-82be597584c1']
+				).map(
+					(sprayId) =>
+						valorantData.sprays.find((spray) => spray.uuid === sprayId)!
+				),
+				left: (loadout.sprayIds.left.length
+					? loadout.sprayIds.left
 					: ['0a6db78c-48b9-a32d-c47a-82be597584c1']
 				).map(
 					(sprayId) =>
@@ -406,9 +413,9 @@ export default function Index() {
 							gridTemplateAreas: `
             "sidearm smg rifle sniper"
             "sidearm smg rifle sniper"
+            "sidearm shotgun rifle sniper"
             "sidearm shotgun rifle heavy"
-            "sidearm shotgun rifle heavy"
-            "sidearm . . melee"
+            "sidearm melee . heavy"
           `,
 						}}
 					>

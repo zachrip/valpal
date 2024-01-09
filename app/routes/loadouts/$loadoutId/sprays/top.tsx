@@ -42,7 +42,7 @@ export async function action({ request, params }: ActionArgs) {
 		...loadout,
 		sprayIds: {
 			...loadout.sprayIds,
-			preRound: Object.entries(out.sprays || {}).reduce<Array<string>>(
+			top: Object.entries(out.sprays || {}).reduce<Array<string>>(
 				(acc, next) => {
 					if (next[1]) {
 						acc.push(next[0]);
@@ -55,7 +55,6 @@ export async function action({ request, params }: ActionArgs) {
 	};
 
 	await saveUserConfig(user.userId, {
-		currentLoadout: userConfig.currentLoadout,
 		loadouts: [
 			...userConfig.loadouts.filter((l) => l.id !== loadoutId),
 			newLoadout,
@@ -87,7 +86,7 @@ export async function loader({ params }: LoaderArgs) {
 
 	const entitlements = await user.getEntitlements();
 
-	const selectedSprays = loadout.sprayIds.preRound;
+	const selectedSprays = loadout.sprayIds.top;
 	const ownedSprays = valorantData.sprays
 		.filter((spray) =>
 			entitlements.spray.some(
@@ -102,7 +101,7 @@ export async function loader({ params }: LoaderArgs) {
 	});
 }
 
-export default function AddPreroundSpray() {
+export default function AddTopSpray() {
 	const { ownedSprays, selectedSprays } = useLoaderData<typeof loader>();
 	const navigate = useNavigate();
 	const params = useParams();
@@ -117,7 +116,7 @@ export default function AddPreroundSpray() {
 				<DialogPrimitive.Overlay className="bg-black/60 fixed top-0 left-0 right-0 bottom-0 grid place-items-center">
 					<DialogPrimitive.Content className="w-full max-w-3xl h-3/5 overflow-auto p-4 bg-slate-700 rounded-md">
 						<DialogPrimitive.Title className="text-2xl">
-							Select Preround Sprays
+							Select Top Sprays
 						</DialogPrimitive.Title>
 						<Form
 							method="post"
