@@ -2,15 +2,15 @@ import WebSocket from 'ws';
 import open from 'open';
 import { NotifyIcon, Icon, Menu } from 'not-the-systray';
 
-import { Agent, ValorantLoadout } from 'types';
-import { Loadout } from '~/utils';
+import type { Agent, ValorantLoadout } from 'types';
+import type { Loadout } from '~/utils';
 import {
 	getLockfile,
 	getUser,
 	getUserConfig,
 	randomItem,
 } from '~/utils.server';
-import { User } from './userman';
+import type { User } from './userman';
 
 function tryParseJson<T>(json: string): T | null {
 	try {
@@ -88,14 +88,6 @@ export class AppManager {
 				const { checked } = this.menu.get(loadoutShufflingItemId);
 				this.menu.update(loadoutShufflingItemId, { checked: !checked });
 				this.isAutoShuffleEnabled = !checked;
-
-				try {
-					if (!this.isAutoShuffleEnabled) {
-					} else {
-					}
-				} catch (e) {
-					console.log(e);
-				}
 				break;
 			}
 			case agentDetectionItemId: {
@@ -309,23 +301,30 @@ export class AppManager {
 			},
 			Sprays: [
 				{
-					EquipSlotID: '0814b2fe-4512-60a4-5288-1fbdcec6ca48',
-					SprayID:
-						randomItem(loadout.sprayIds.preRound) ||
-						'0a6db78c-48b9-a32d-c47a-82be597584c1',
-					SprayLevelID: null,
-				},
-				{
 					EquipSlotID: '04af080a-4071-487b-61c0-5b9c0cfaac74',
 					SprayID:
-						randomItem(loadout.sprayIds.midRound) ||
+						randomItem(loadout.sprayIds.top) ||
 						'0a6db78c-48b9-a32d-c47a-82be597584c1',
 					SprayLevelID: null,
 				},
 				{
 					EquipSlotID: '5863985e-43ac-b05d-cb2d-139e72970014',
 					SprayID:
-						randomItem(loadout.sprayIds.postRound) ||
+						randomItem(loadout.sprayIds.right) ||
+						'0a6db78c-48b9-a32d-c47a-82be597584c1',
+					SprayLevelID: null,
+				},
+				{
+					EquipSlotID: '7cdc908e-4f69-9140-a604-899bd879eed1',
+					SprayID:
+						randomItem(loadout.sprayIds.bottom) ||
+						'0a6db78c-48b9-a32d-c47a-82be597584c1',
+					SprayLevelID: null,
+				},
+				{
+					EquipSlotID: '0814b2fe-4512-60a4-5288-1fbdcec6ca48',
+					SprayID:
+						randomItem(loadout.sprayIds.left) ||
 						'0a6db78c-48b9-a32d-c47a-82be597584c1',
 					SprayLevelID: null,
 				},

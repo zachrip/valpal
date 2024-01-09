@@ -5,7 +5,7 @@ import https from 'https';
 
 import { v4 as uuidv4 } from 'uuid';
 
-import type { Loadout, UserConfig } from '~/utils';
+import type { Loadout, UserConfig, UserConfigV1, UserConfigV2 } from '~/utils';
 import { generateRequestHeaders, User } from 'server/userman';
 import { Regions, Shards } from 'types';
 
@@ -84,15 +84,60 @@ export function getDefaultLoadout(): Loadout {
 			'462080d1-4035-2937-7c09-27aa2a5c27a7': { templates: [] },
 			'f7e1b454-4ad4-1063-ec0a-159e56b58941': { templates: [] },
 			'2f59173c-4bed-b6c3-2191-dea9b58be9c7': { templates: [] },
+			'5f0aaf7a-4289-3998-d5ff-eb9a5cf7ef5c': { templates: [] },
 		},
 		playerCardIds: [],
 		playerTitleIds: [],
 		sprayIds: {
-			midRound: [],
-			postRound: [],
-			preRound: [],
+			top: [],
+			right: [],
+			bottom: [],
+			left: [],
 		},
 	};
+}
+
+const CONFIG_VERSION = 2;
+
+const migratePipeline = [
+	{
+		version: 2,
+		migrate(old: UserConfigV1): UserConfigV2 {
+			return {
+				...old,
+				loadouts: old.loadouts.map((loadout) => ({
+					...loadout,
+					sprayIds: {
+						top: loadout.sprayIds.midRound,
+						right: loadout.sprayIds.postRound,
+						bottom: [],
+						left: loadout.sprayIds.preRound,
+					},
+				})),
+				version: CONFIG_VERSION,
+			};
+		},
+	},
+] as const;
+
+function migrateConfig(config: any) {
+	const configVersion = 'version' in config ? config.version : 1;
+
+	if (configVersion === CONFIG_VERSION) {
+		return config;
+	}
+
+	const pipeline = migratePipeline.filter(
+		({ version }) => version > configVersion
+	);
+
+	if (!pipeline.length) {
+		throw new Error(
+			`No migration pipeline for config version ${configVersion}`
+		);
+	}
+
+	return pipeline.reduce((acc, { migrate }) => migrate(acc), config);
 }
 
 export async function getUserConfig(userId: string): Promise<UserConfig> {
@@ -100,22 +145,31 @@ export async function getUserConfig(userId: string): Promise<UserConfig> {
 	const userFilenamePath = path.resolve(process.cwd(), userFileName);
 
 	if (!(await exists(userFilenamePath))) {
-		await writeTextFile(
-			userFilenamePath,
-			JSON.stringify({
-				loadouts: [getDefaultLoadout()],
-			})
-		);
+		const newConfig: UserConfig = {
+			loadouts: [getDefaultLoadout()],
+			version: CONFIG_VERSION,
+		};
+
+		await writeTextFile(userFilenamePath, JSON.stringify(newConfig));
 	}
 
-	return JSON.parse(await readTextFile(userFilenamePath));
+	return migrateConfig(JSON.parse(await readTextFile(userFilenamePath)));
 }
 
-export async function saveUserConfig(userId: string, config: UserConfig) {
+export async function saveUserConfig(
+	userId: string,
+	config: Omit<UserConfig, 'version'>
+) {
 	const userFileName = `user_${userId}.json`;
 	const userFilenamePath = path.resolve(process.cwd(), userFileName);
 
-	await writeTextFile(userFilenamePath, JSON.stringify(config));
+	await writeTextFile(
+		userFilenamePath,
+		JSON.stringify({
+			...config,
+			version: CONFIG_VERSION,
+		})
+	);
 }
 
 const httpClient = axios.create({

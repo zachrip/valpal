@@ -87,7 +87,6 @@ export async function action({ request, params }: ActionArgs) {
 	};
 
 	await saveUserConfig(user.userId, {
-		currentLoadout: userConfig.currentLoadout,
 		loadouts: [
 			...userConfig.loadouts.filter((l) => l.id !== loadoutId),
 			newLoadout,

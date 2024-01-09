@@ -1,16 +1,15 @@
-import type { ActionArgs, LoaderArgs } from '@remix-run/node';
+import type { ActionArgs } from '@remix-run/node';
 import { json } from '@remix-run/node';
 import { redirect } from '@remix-run/node';
 import { Form, Link, useLoaderData } from '@remix-run/react';
-import { ValorantLoadout } from 'types';
 import { Gallery } from '~/components/Gallery';
 
 import { SwitchImage } from '~/components/SwitchImage';
+import { weaponUuidToIndex } from '~/utils';
 import {
 	getDefaultLoadout,
 	getUser,
 	getUserConfig,
-	randomItem,
 	randomUUID,
 	saveUserConfig,
 } from '~/utils.server';
@@ -160,30 +159,43 @@ export const loader = async () => {
 					(id) => valorantData.playerTitles.find((title) => title.uuid === id)!
 				),
 				sprays: {
-					preRound: (loadout.sprayIds.preRound.length
-						? loadout.sprayIds.preRound
+					top: (loadout.sprayIds.top.length
+						? loadout.sprayIds.top
 						: ['0a6db78c-48b9-a32d-c47a-82be597584c1']
 					).map(
 						(sprayId) =>
 							valorantData.sprays.find((spray) => spray.uuid === sprayId)!
 					),
-					midRound: (loadout.sprayIds.midRound.length
-						? loadout.sprayIds.midRound
+					right: (loadout.sprayIds.right.length
+						? loadout.sprayIds.right
 						: ['0a6db78c-48b9-a32d-c47a-82be597584c1']
 					).map(
 						(sprayId) =>
 							valorantData.sprays.find((spray) => spray.uuid === sprayId)!
 					),
-					postRound: (loadout.sprayIds.postRound.length
-						? loadout.sprayIds.postRound
+					bottom: (loadout.sprayIds.bottom.length
+						? loadout.sprayIds.bottom
+						: ['0a6db78c-48b9-a32d-c47a-82be597584c1']
+					).map(
+						(sprayId) =>
+							valorantData.sprays.find((spray) => spray.uuid === sprayId)!
+					),
+					left: (loadout.sprayIds.bottom.length
+						? loadout.sprayIds.left
 						: ['0a6db78c-48b9-a32d-c47a-82be597584c1']
 					).map(
 						(sprayId) =>
 							valorantData.sprays.find((spray) => spray.uuid === sprayId)!
 					),
 				},
-				weapons: Object.entries(loadout.weapons).map(
-					([weaponId, { templates }]) => {
+				weapons: Object.entries(loadout.weapons)
+					.sort((a, b) => {
+						const indexA = weaponUuidToIndex[a[0]];
+						const indexB = weaponUuidToIndex[b[0]];
+
+						return indexA - indexB;
+					})
+					.map(([weaponId, { templates }]) => {
 						const weapon = weapons.find((w) => w.uuid === weaponId)!;
 
 						return {
@@ -222,8 +234,7 @@ export const loader = async () => {
 								};
 							}),
 						};
-					}
-				),
+					}),
 			};
 		});
 
@@ -237,7 +248,7 @@ const buttonStyles =
 	'cursor-pointer text-white px-2 py-1 border-2 border-white rounded-md hover:bg-white hover:text-slate-800';
 
 export default function Index() {
-	const { loadouts, allAgents } = useLoaderData<typeof loader>();
+	const { loadouts } = useLoaderData<typeof loader>();
 
 	return (
 		<div className="p-6">

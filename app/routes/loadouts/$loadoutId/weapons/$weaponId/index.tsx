@@ -10,7 +10,7 @@ import type { ActionArgs, LoaderArgs } from '@remix-run/node';
 import { json, redirect } from '@remix-run/node';
 import { getUser, getUserConfig, saveUserConfig } from '~/utils.server';
 import { SwitchImage } from '~/components/SwitchImage';
-import { Loadout } from '~/utils';
+import type { Loadout } from '~/utils';
 
 export async function action({ request, params }: ActionArgs) {
 	const user = await getUser();
@@ -59,7 +59,6 @@ export async function action({ request, params }: ActionArgs) {
 			};
 
 			await saveUserConfig(user.userId, {
-				currentLoadout: userConfig.currentLoadout,
 				loadouts: [
 					...userConfig.loadouts.filter((l) => l.id !== loadoutId),
 					newLoadout,

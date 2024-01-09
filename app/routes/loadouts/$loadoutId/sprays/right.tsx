@@ -14,7 +14,7 @@ import { zfd } from 'zod-form-data';
 import { z } from 'zod';
 
 const schema = zfd.formData({
-	playerTitles: z.record(z.string(), zfd.checkbox()).optional(),
+	sprays: z.record(z.string(), zfd.checkbox()).optional(),
 });
 
 export async function action({ request, params }: ActionArgs) {
@@ -40,14 +40,18 @@ export async function action({ request, params }: ActionArgs) {
 
 	const newLoadout: Loadout = {
 		...loadout,
-		playerTitleIds: Object.entries(out.playerTitles || {}).reduce<
-			Array<string>
-		>((acc, next) => {
-			if (next[1]) {
-				acc.push(next[0]);
-			}
-			return acc;
-		}, []),
+		sprayIds: {
+			...loadout.sprayIds,
+			right: Object.entries(out.sprays || {}).reduce<Array<string>>(
+				(acc, next) => {
+					if (next[1]) {
+						acc.push(next[0]);
+					}
+					return acc;
+				},
+				[]
+			),
+		},
 	};
 
 	await saveUserConfig(user.userId, {
@@ -82,26 +86,24 @@ export async function loader({ params }: LoaderArgs) {
 
 	const entitlements = await user.getEntitlements();
 
-	const selectedPlayerTitles = loadout.playerTitleIds;
-	const ownedPlayerTitles = valorantData.playerTitles
-		.filter((playerTitle) =>
-			entitlements.player_title.some(
-				(entitlement) => entitlement.ItemID === playerTitle.uuid
+	const selectedSprays = loadout.sprayIds.right;
+	const ownedSprays = valorantData.sprays
+		.filter((spray) =>
+			entitlements.spray.some(
+				(entitlement) => entitlement.ItemID === spray.uuid
 			)
 		)
-		.sort((a, b) =>
-			(a.titleText || 'default').localeCompare(b.titleText || 'Default')
-		);
+		.filter((spray) => spray.category !== 'EAresSprayCategory::Contextual')
+		.sort((a, b) => a.displayName.localeCompare(b.displayName));
 
 	return json({
-		selectedPlayerTitles,
-		ownedPlayerTitles,
+		selectedSprays,
+		ownedSprays,
 	});
 }
 
-export default function AddPlayerTitle() {
-	const { ownedPlayerTitles, selectedPlayerTitles } =
-		useLoaderData<typeof loader>();
+export default function AddRightSpray() {
+	const { ownedSprays, selectedSprays } = useLoaderData<typeof loader>();
 	const navigate = useNavigate();
 	const params = useParams();
 	const submit = useSubmit();
@@ -115,7 +117,7 @@ export default function AddPlayerTitle() {
 				<DialogPrimitive.Overlay className="bg-black/60 fixed top-0 left-0 right-0 bottom-0 grid place-items-center">
 					<DialogPrimitive.Content className="w-full max-w-3xl h-3/5 overflow-auto p-4 bg-slate-700 rounded-md">
 						<DialogPrimitive.Title className="text-2xl">
-							Select Player Titles
+							Select Right Sprays
 						</DialogPrimitive.Title>
 						<Form
 							method="post"
@@ -126,22 +128,33 @@ export default function AddPlayerTitle() {
 							}}
 						>
 							<div className="grid grid-cols-4 gap-2 mt-2">
-								{ownedPlayerTitles.map((playerTitle) => (
-									<div key={playerTitle.uuid} className="aspect-video">
+								{ownedSprays.map((spray) => (
+									<div key={spray.uuid}>
 										<input
-											id={playerTitle.uuid}
-											name={`playerTitles[${playerTitle.uuid}]`}
+											id={spray.uuid}
+											name={`sprays[${spray.uuid}]`}
 											type="checkbox"
 											className="hidden peer"
-											defaultChecked={selectedPlayerTitles.includes(
-												playerTitle.uuid
-											)}
+											defaultChecked={selectedSprays.includes(spray.uuid)}
 										/>
 										<label
-											htmlFor={playerTitle.uuid}
-											className="w-full h-full p-2 peer-checked:bg-slate-500 hover:bg-slate-500 rounded-md grid place-items-center"
+											htmlFor={spray.uuid}
+											className="block w-full h-full p-2 peer-checked:bg-slate-500 hover:bg-slate-500 rounded-md"
 										>
-											{playerTitle.titleText || 'default'}
+											<div className="w-full aspect-square">
+												<img
+													className="w-full h-full object-contain"
+													src={
+														spray.animationGif ||
+														spray.fullTransparentIcon ||
+														spray.displayIcon
+													}
+													alt={spray.displayName}
+												/>
+											</div>
+											<h2 className="text-sm text-white font-bold text-center whitespace-nowrap overflow-hidden text-ellipsis mt-2">
+												{spray.displayName.slice(0, -6)}
+											</h2>
 										</label>
 									</div>
 								))}

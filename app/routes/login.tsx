@@ -1,4 +1,5 @@
-import { redirect, MetaFunction } from '@remix-run/node';
+import type { MetaFunction } from '@remix-run/node';
+import { redirect } from '@remix-run/node';
 
 import { getUser } from '~/utils.server';
 
