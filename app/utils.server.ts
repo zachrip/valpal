@@ -236,6 +236,8 @@ export async function getUser() {
 								headers: generateRequestHeaders({
 									accessToken: tokens.accessToken,
 									entitlementsToken: tokens.token,
+									riotClientVersion:
+										global.valorantData.version.riotClientVersion,
 								}),
 							}
 						);
@@ -286,6 +288,7 @@ export async function getUser() {
 		userShardRegionCache.set(tokens.subject, res);
 
 		return new User({
+			riotClientVersion: global.valorantData.version.riotClientVersion,
 			accessToken: tokens.accessToken,
 			entitlementsToken: tokens.token,
 			region: res.region,

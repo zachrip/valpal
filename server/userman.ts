@@ -43,13 +43,14 @@ export function generateRequestHeaders(
 	args: {
 		accessToken: string;
 		entitlementsToken: string;
+		riotClientVersion: string;
 	},
 	extraHeaders: Record<string, string> = {}
 ) {
 	const defaultHeaders = {
 		Authorization: `Bearer ${args.accessToken}`,
 		'X-Riot-Entitlements-JWT': args.entitlementsToken,
-		'X-Riot-ClientVersion': 'release-08.00-shipping-14-2191955',
+		'X-Riot-ClientVersion': args.riotClientVersion,
 		'X-Riot-ClientPlatform': btoa(
 			JSON.stringify({
 				platformType: 'PC',
@@ -79,6 +80,7 @@ export class User {
 	constructor(args: {
 		accessToken: string;
 		entitlementsToken: string;
+		riotClientVersion: string;
 		userId: string;
 		region: Regions;
 		shard: Shards;
@@ -89,6 +91,7 @@ export class User {
 		this.region = args.region;
 		this.shard = args.shard;
 		this.requestHeaders = generateRequestHeaders({
+			riotClientVersion: args.riotClientVersion,
 			accessToken: this.accessToken,
 			entitlementsToken: this.entitlementsToken,
 		});

@@ -240,7 +240,6 @@ export const loader = async () => {
 
 	return json({
 		loadouts,
-		allAgents: valorantData.agents,
 	});
 };
 

@@ -64,8 +64,17 @@ async function getAgents() {
 	return data.data.filter((agent) => agent.isPlayableCharacter);
 }
 
+async function getVersion() {
+	const { data } = await httpClient.get<{
+		status: number;
+		data: { riotClientVersion: string };
+	}>('https://valorant-api.com/v1/version');
+
+	return data.data;
+}
+
 export async function initSkinData() {
-	const [weapons, buddies, sprays, playerCards, playerTitles, agents] =
+	const [weapons, buddies, sprays, playerCards, playerTitles, agents, version] =
 		await Promise.all([
 			getWeapons(),
 			getBuddies(),
@@ -73,6 +82,7 @@ export async function initSkinData() {
 			getPlayerCards(),
 			getPlayerTitles(),
 			getAgents(),
+			getVersion(),
 		]);
 
 	global.valorantData = {
@@ -82,6 +92,7 @@ export async function initSkinData() {
 		playerCards,
 		playerTitles,
 		agents,
+		version,
 	};
 }
 
@@ -93,5 +104,8 @@ declare global {
 		playerCards: PlayerCard[];
 		playerTitles: PlayerTitle[];
 		agents: Agent[];
+		version: {
+			riotClientVersion: string;
+		};
 	};
 }

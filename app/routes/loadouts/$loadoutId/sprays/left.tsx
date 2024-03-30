@@ -93,7 +93,6 @@ export async function loader({ params }: LoaderArgs) {
 				(entitlement) => entitlement.ItemID === spray.uuid
 			)
 		)
-		.filter((spray) => spray.category !== 'EAresSprayCategory::Contextual')
 		.sort((a, b) => a.displayName.localeCompare(b.displayName));
 
 	return json({
