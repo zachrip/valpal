@@ -3,9 +3,13 @@ import fsPromise from 'fs/promises';
 import path from 'path';
 import https from 'https';
 
-import { v4 as uuidv4 } from 'uuid';
-
-import type { Loadout, UserConfig, UserConfigV1, UserConfigV2 } from '~/utils';
+import type {
+	Loadout,
+	UserConfig,
+	UserConfigV1,
+	UserConfigV2,
+	UserConfigV3,
+} from '~/utils';
 import { generateRequestHeaders, User } from 'server/userman';
 import { Regions, Shards } from 'types';
 
@@ -24,7 +28,7 @@ export async function getLockfile() {
 		'Riot Games',
 		'Riot Client',
 		'Config',
-		'lockfile'
+		'lockfile',
 	);
 
 	if (!(await exists(lockfilePath))) {
@@ -51,7 +55,7 @@ function writeTextFile(filename: string, content: string) {
 }
 
 export function randomUUID() {
-	return uuidv4();
+	return crypto.randomUUID();
 }
 
 export function randomItem<T>(array: T[]) {
@@ -88,16 +92,28 @@ export function getDefaultLoadout(): Loadout {
 		},
 		playerCardIds: [],
 		playerTitleIds: [],
-		sprayIds: {
-			top: [],
-			right: [],
-			bottom: [],
-			left: [],
+		expressionIds: {
+			top: {
+				sprayIds: [],
+				flexIds: [],
+			},
+			right: {
+				sprayIds: [],
+				flexIds: [],
+			},
+			bottom: {
+				sprayIds: [],
+				flexIds: [],
+			},
+			left: {
+				sprayIds: [],
+				flexIds: [],
+			},
 		},
 	};
 }
 
-const CONFIG_VERSION = 2;
+const CONFIG_VERSION = 3;
 
 const migratePipeline = [
 	{
@@ -114,7 +130,37 @@ const migratePipeline = [
 						left: loadout.sprayIds.preRound,
 					},
 				})),
-				version: CONFIG_VERSION,
+				version: 2,
+			};
+		},
+	},
+	{
+		version: 3,
+		migrate(old: UserConfigV2): UserConfigV3 {
+			return {
+				...old,
+				version: 3,
+				loadouts: old.loadouts.map((loadout) => ({
+					...loadout,
+					expressionIds: {
+						top: {
+							sprayIds: loadout.sprayIds.top,
+							flexIds: [],
+						},
+						right: {
+							sprayIds: loadout.sprayIds.right,
+							flexIds: [],
+						},
+						bottom: {
+							sprayIds: loadout.sprayIds.bottom,
+							flexIds: [],
+						},
+						left: {
+							sprayIds: loadout.sprayIds.left,
+							flexIds: [],
+						},
+					},
+				})),
 			};
 		},
 	},
@@ -128,12 +174,12 @@ function migrateConfig(config: any) {
 	}
 
 	const pipeline = migratePipeline.filter(
-		({ version }) => version > configVersion
+		({ version }) => version > configVersion,
 	);
 
 	if (!pipeline.length) {
 		throw new Error(
-			`No migration pipeline for config version ${configVersion}`
+			`No migration pipeline for config version ${configVersion}`,
 		);
 	}
 
@@ -158,7 +204,7 @@ export async function getUserConfig(userId: string): Promise<UserConfig> {
 
 export async function saveUserConfig(
 	userId: string,
-	config: Omit<UserConfig, 'version'>
+	config: Omit<UserConfig, 'version'>,
 ) {
 	const userFileName = `user_${userId}.json`;
 	const userFilenamePath = path.resolve(process.cwd(), userFileName);
@@ -168,7 +214,7 @@ export async function saveUserConfig(
 		JSON.stringify({
 			...config,
 			version: CONFIG_VERSION,
-		})
+		}),
 	);
 }
 
@@ -206,7 +252,7 @@ export async function getUser() {
 			}>(`https://127.0.0.1:${port}/entitlements/v1/token`, {
 				headers: {
 					Authorization: `Basic ${Buffer.from(`riot:${password}`).toString(
-						'base64'
+						'base64',
 					)}`,
 				},
 			})
@@ -239,7 +285,7 @@ export async function getUser() {
 									riotClientVersion:
 										global.valorantData.version.riotClientVersion,
 								}),
-							}
+							},
 						);
 
 						if (!response.data.Subject) {
@@ -262,7 +308,7 @@ export async function getUser() {
 										'Caught error trying to get user for region/shard detection',
 										region,
 										shard,
-										e
+										e,
 									);
 									break;
 								}

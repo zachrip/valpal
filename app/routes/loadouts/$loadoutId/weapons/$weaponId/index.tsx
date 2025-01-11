@@ -4,19 +4,19 @@ import {
 	useLoaderData,
 	useNavigate,
 	useParams,
-} from '@remix-run/react';
+} from 'react-router';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
-import type { ActionArgs, LoaderArgs } from '@remix-run/node';
-import { json, redirect } from '@remix-run/node';
+import type { ActionFunctionArgs, LoaderFunctionArgs } from 'react-router';
+import { redirect } from 'react-router';
 import { getUser, getUserConfig, saveUserConfig } from '~/utils.server';
 import { SwitchImage } from '~/components/SwitchImage';
 import type { Loadout } from '~/utils';
 
-export async function action({ request, params }: ActionArgs) {
+export async function action({ request, params }: ActionFunctionArgs) {
 	const user = await getUser();
 
 	if (!user) {
-		return redirect('/login');
+		throw redirect('/login');
 	}
 
 	const { loadoutId, weaponId } = params;
@@ -25,11 +25,11 @@ export async function action({ request, params }: ActionArgs) {
 
 	const userConfig = await getUserConfig(user.userId);
 	const loadout = userConfig.loadouts.find(
-		(loadout) => loadout.id === loadoutId
+		(loadout) => loadout.id === loadoutId,
 	);
 
 	if (!loadout) {
-		return redirect('/loadouts');
+		throw redirect('/loadouts');
 	}
 
 	switch (action) {
@@ -42,7 +42,7 @@ export async function action({ request, params }: ActionArgs) {
 			}
 
 			const newTemplates = existingWeapon.templates.filter(
-				(template) => template.id !== templateId
+				(template) => template.id !== templateId,
 			);
 
 			const newWeapon: Loadout['weapons'][number] = {
@@ -65,12 +65,12 @@ export async function action({ request, params }: ActionArgs) {
 				],
 			});
 
-			return json({
+			return {
 				success: true,
-			});
+			};
 		}
 		default: {
-			return json(null, {
+			return new Response(null, {
 				headers: {
 					'Content-Type': 'application/json',
 				},
@@ -80,22 +80,22 @@ export async function action({ request, params }: ActionArgs) {
 	}
 }
 
-export async function loader({ params }: LoaderArgs) {
+export async function loader({ params }: LoaderFunctionArgs) {
 	const user = await getUser();
 
 	if (!user) {
-		return redirect('/login');
+		throw redirect('/login');
 	}
 
 	const { loadoutId, weaponId } = params;
 
 	const userConfig = await getUserConfig(user.userId);
 	const loadout = userConfig.loadouts.find(
-		(loadout) => loadout.id === loadoutId
+		(loadout) => loadout.id === loadoutId,
 	);
 
 	if (!loadout) {
-		return redirect('/loadouts');
+		throw redirect('/loadouts');
 	}
 
 	const weapons = valorantData.weapons;
@@ -103,12 +103,12 @@ export async function loader({ params }: LoaderArgs) {
 	const weapon = weapons.find((weapon) => weapon.uuid === weaponId)!;
 	const templates = loadout.weapons[weaponId!].templates;
 
-	return json({
+	return {
 		weapon,
 		templates: templates.map((template) => {
 			const skin = weapon.skins.find((skin) => skin.uuid === template.skinId)!;
 			const chromas = skin.chromas.filter((chroma) =>
-				template.chromaIds.includes(chroma.uuid)
+				template.chromaIds.includes(chroma.uuid),
 			);
 
 			return {
@@ -117,7 +117,7 @@ export async function loader({ params }: LoaderArgs) {
 				chromas,
 			};
 		}),
-	});
+	};
 }
 
 export default function EditWeapon() {
@@ -131,12 +131,30 @@ export default function EditWeapon() {
 			onOpenChange={() => navigate(`/loadouts/${params.loadoutId}`)}
 		>
 			<DialogPrimitive.Portal>
-				<DialogPrimitive.Overlay className="bg-black/60 fixed top-0 left-0 right-0 bottom-0 grid place-items-center">
-					<DialogPrimitive.Content className="w-full max-w-3xl h-3/5 overflow-auto p-4 bg-slate-700 rounded-md">
-						<DialogPrimitive.Title className="text-2xl">
-							{weapon.displayName}
-						</DialogPrimitive.Title>
-						<div className="grid grid-cols-3 gap-2 mt-2">
+				<DialogPrimitive.Overlay className="bg-black/60 fixed inset-0 grid place-items-center">
+					<DialogPrimitive.Content className="w-full max-w-3xl h-3/5 bg-slate-700 rounded-md flex flex-col overflow-hidden">
+						<div className="flex flex-row items-center justify-between flex-none p-4 bg-slate-600">
+							<DialogPrimitive.Title className="text-2xl">
+								{weapon.displayName}
+							</DialogPrimitive.Title>
+							<DialogPrimitive.Close>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
+									className="w-6 h-6"
+								>
+									<path
+										strokeLinecap="round"
+										strokeLinejoin="round"
+										strokeWidth={2}
+										d="M6 18L18 6M6 6l12 12"
+									/>
+								</svg>
+							</DialogPrimitive.Close>
+						</div>
+						<div className="grid grid-cols-3 gap-2 overflow-y-auto scrollbar-thin scrollbar-thumb-white scrollbar-track-transparent scrollbar-thumb-rounded-full px-4 mr-4 mb-4 mt-4">
 							{templates.map((template) => {
 								return (
 									<div
@@ -161,7 +179,7 @@ export default function EditWeapon() {
 											</h2>
 										</div>
 										<div className="absolute inset-0 opacity-0 group-hover:opacity-100 bg-black/40 flex flex-row justify-center items-center gap-2">
-											<Form method="post">
+											<Form method="POST">
 												<input
 													type="hidden"
 													name="action"

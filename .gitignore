@@ -1,8 +1,9 @@
-node_modules
+.DS_Store
+/node_modules/
+*.tsbuildinfo
 
-/.cache
-/build
-/dist
-/public/build
-.env
-user*.json
+# React Router
+/.react-router/
+/build/
+user_*.json
+/dist/

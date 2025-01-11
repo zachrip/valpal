@@ -1,7 +1,6 @@
-import type { LoaderArgs } from '@remix-run/node';
-import { json } from '@remix-run/node';
-import { redirect } from '@remix-run/node';
-import { Form, Link, Outlet, useLoaderData, useSubmit } from '@remix-run/react';
+import type { LoaderFunctionArgs } from 'react-router';
+import { redirect } from 'react-router';
+import { Form, Link, Outlet, useLoaderData, useSubmit } from 'react-router';
 import { zfd } from 'zod-form-data';
 import { z } from 'zod';
 
@@ -20,11 +19,11 @@ const updateSchema = zfd.formData({
 	agents: z.record(z.string(), zfd.checkbox()).optional(),
 });
 
-export const action = async ({ request, params }: LoaderArgs) => {
+export async function action({ request, params }: LoaderFunctionArgs) {
 	const user = await getUser();
 
 	if (!user) {
-		return redirect('/login');
+		throw redirect('/login');
 	}
 
 	const formData = await request.formData();
@@ -35,11 +34,11 @@ export const action = async ({ request, params }: LoaderArgs) => {
 			const loadoutId = params.loadoutId;
 			const config = await getUserConfig(user.userId);
 			const loadout = config.loadouts.find(
-				(loadout) => loadout.id === loadoutId
+				(loadout) => loadout.id === loadoutId,
 			);
 
 			if (!loadout) {
-				return redirect('/loadouts');
+				throw redirect('/loadouts');
 			}
 
 			const { name, agents } = updateSchema.parse(formData);
@@ -52,45 +51,45 @@ export const action = async ({ request, params }: LoaderArgs) => {
 					}
 					return acc;
 				},
-				[]
+				[],
 			);
 			await saveUserConfig(user.userId, config);
-			return redirect(`/loadouts/${loadoutId}`);
+			throw redirect(`/loadouts/${loadoutId}`);
 		}
 		default: {
 			throw new Error('Invalid action');
 		}
 	}
-};
+}
 
-export const loader = async ({ params }: LoaderArgs) => {
+export const loader = async ({ params }: LoaderFunctionArgs) => {
 	const user = await getUser();
 
 	if (!user) {
-		return redirect('/login');
+		throw redirect('/login');
 	}
 
 	const { loadoutId } = params;
 
 	const userConfig = await getUserConfig(user.userId);
 	const loadout = userConfig.loadouts.find(
-		(loadout) => loadout.id === loadoutId
+		(loadout) => loadout.id === loadoutId,
 	);
 
 	if (!loadout) {
-		return redirect('/loadouts');
+		throw redirect('/loadouts');
 	}
 
 	const weapons = valorantData.weapons;
 
-	return json({
+	return {
 		allAgents: valorantData.agents,
 		loadout: {
 			id: loadout.id,
 			name: loadout.name,
 			agents: loadout.agentIds.map((agentId) => {
 				const agent = valorantData.agents.find(
-					(agent) => agent.uuid === agentId
+					(agent) => agent.uuid === agentId,
 				)!;
 				return agent;
 			}),
@@ -102,37 +101,61 @@ export const loader = async ({ params }: LoaderArgs) => {
 				? loadout.playerTitleIds
 				: ['d13e579c-435e-44d4-cec2-6eae5a3c5ed4']
 			).map(
-				(id) => valorantData.playerTitles.find((title) => title.uuid === id)!
+				(id) => valorantData.playerTitles.find((title) => title.uuid === id)!,
 			),
-			sprays: {
-				top: (loadout.sprayIds.top.length
-					? loadout.sprayIds.top
-					: ['0a6db78c-48b9-a32d-c47a-82be597584c1']
-				).map(
-					(sprayId) =>
-						valorantData.sprays.find((spray) => spray.uuid === sprayId)!
-				),
-				right: (loadout.sprayIds.right.length
-					? loadout.sprayIds.right
-					: ['0a6db78c-48b9-a32d-c47a-82be597584c1']
-				).map(
-					(sprayId) =>
-						valorantData.sprays.find((spray) => spray.uuid === sprayId)!
-				),
-				bottom: (loadout.sprayIds.bottom.length
-					? loadout.sprayIds.bottom
-					: ['0a6db78c-48b9-a32d-c47a-82be597584c1']
-				).map(
-					(sprayId) =>
-						valorantData.sprays.find((spray) => spray.uuid === sprayId)!
-				),
-				left: (loadout.sprayIds.left.length
-					? loadout.sprayIds.left
-					: ['0a6db78c-48b9-a32d-c47a-82be597584c1']
-				).map(
-					(sprayId) =>
-						valorantData.sprays.find((spray) => spray.uuid === sprayId)!
-				),
+			expressions: {
+				top: {
+					sprayIds: (loadout.expressionIds.top.sprayIds.length ||
+					loadout.expressionIds.top.flexIds.length
+						? loadout.expressionIds.top.sprayIds
+						: ['0a6db78c-48b9-a32d-c47a-82be597584c1']
+					).map(
+						(sprayId) =>
+							valorantData.sprays.find((spray) => spray.uuid === sprayId)!,
+					),
+					flexIds: loadout.expressionIds.top.flexIds.map(
+						(flexId) => valorantData.flex.find((flex) => flex.uuid === flexId)!,
+					),
+				},
+				right: {
+					sprayIds: (loadout.expressionIds.right.sprayIds.length ||
+					loadout.expressionIds.right.flexIds.length
+						? loadout.expressionIds.right.sprayIds
+						: ['0a6db78c-48b9-a32d-c47a-82be597584c1']
+					).map(
+						(sprayId) =>
+							valorantData.sprays.find((spray) => spray.uuid === sprayId)!,
+					),
+					flexIds: loadout.expressionIds.right.flexIds.map(
+						(flexId) => valorantData.flex.find((flex) => flex.uuid === flexId)!,
+					),
+				},
+				bottom: {
+					sprayIds: (loadout.expressionIds.bottom.sprayIds.length ||
+					loadout.expressionIds.bottom.flexIds.length
+						? loadout.expressionIds.bottom.sprayIds
+						: ['0a6db78c-48b9-a32d-c47a-82be597584c1']
+					).map(
+						(sprayId) =>
+							valorantData.sprays.find((spray) => spray.uuid === sprayId)!,
+					),
+					flexIds: loadout.expressionIds.bottom.flexIds.map(
+						(flexId) => valorantData.flex.find((flex) => flex.uuid === flexId)!,
+					),
+				},
+				left: {
+					sprayIds: loadout.expressionIds.left.sprayIds.map(
+						(sprayId) =>
+							valorantData.sprays.find((spray) => spray.uuid === sprayId)!,
+					),
+					flexIds: (loadout.expressionIds.left.flexIds.length ||
+					loadout.expressionIds.left.sprayIds.length
+						? loadout.expressionIds.left.flexIds
+						: ['af52b5a0-4a4c-03b2-c9d7-8187a08a2675']
+					).map(
+						(flexId) => valorantData.flex.find((flex) => flex.uuid === flexId)!,
+					),
+				},
 			},
 			weapons: Object.entries(loadout.weapons).map(
 				([weaponId, { templates }]) => {
@@ -146,14 +169,14 @@ export const loader = async ({ params }: LoaderArgs) => {
 						uuid: weapon.uuid,
 						templates: templates.map((template) => {
 							const skin = weapon.skins.find(
-								(skin) => skin.uuid === template.skinId
+								(skin) => skin.uuid === template.skinId,
 							)!;
 							const chromas = skin.chromas.filter((chroma) =>
-								template.chromaIds.includes(chroma.uuid)
+								template.chromaIds.includes(chroma.uuid),
 							);
 							const buddies = template.buddies.flatMap((buddy) => {
 								const buddyData = valorantData.buddies.find(
-									(b) => b.uuid === buddy.id
+									(b) => b.uuid === buddy.id,
 								)!;
 
 								return buddy.levelIds.flatMap((levelId) => {
@@ -174,10 +197,10 @@ export const loader = async ({ params }: LoaderArgs) => {
 							};
 						}),
 					};
-				}
+				},
 			),
 		},
-	});
+	};
 };
 
 export default function Index() {
@@ -187,7 +210,7 @@ export default function Index() {
 	>(
 		(acc, weapon) => {
 			const index = sortedWeapons[weapon.category].indexOf(
-				weapon.displayName.toLowerCase()
+				weapon.displayName.toLowerCase(),
 			);
 			acc[weapon.category][index] = weapon;
 			return acc;
@@ -200,7 +223,7 @@ export default function Index() {
 			'EEquippableCategory::Shotgun': [],
 			'EEquippableCategory::Heavy': [],
 			'EEquippableCategory::Melee': [],
-		}
+		},
 	);
 
 	const submit = useSubmit();
@@ -229,7 +252,7 @@ export default function Index() {
 					Loadouts
 				</Link>
 				<Form
-					method="post"
+					method="POST"
 					className="flex flex-row flex-wrap mt-4 gap-6"
 					onChange={(e) => {
 						submit(e.currentTarget, {
@@ -262,7 +285,7 @@ export default function Index() {
 										type="checkbox"
 										className="hidden peer"
 										defaultChecked={loadout.agents.some(
-											(a) => a.uuid === agent.uuid
+											(a) => a.uuid === agent.uuid,
 										)}
 									/>
 									<label
@@ -361,46 +384,55 @@ export default function Index() {
 									}}
 								>
 									<div className="grid grid-cols-1 place-items-center gap-2 w-full">
-										{Object.entries(loadout.sprays).map(([key, sprays]) => {
-											return (
-												<Link
-													to={`sprays/${key.toLowerCase()}`}
-													key={key}
-													className="flex flex-col relative overflow-hidden rounded-md group p-2 w-full"
-												>
-													<h2 className="text-sm text-white text-center font-bold uppercase">
-														{key}
-													</h2>
-													<Gallery
-														items={sprays.map((spray) => ({
-															...spray,
-															duration: 1000,
-														}))}
-														render={(spray) => (
-															<div>
-																<div className="h-24 aspect-square mx-auto">
-																	<img
-																		className="object-contain w-full h-full"
-																		src={
-																			spray.animationGif ||
-																			spray.fullTransparentIcon ||
-																			spray.displayIcon
-																		}
-																		alt={spray.displayName}
-																	/>
+										{Object.entries(loadout.expressions).map(
+											([key, expressions]) => {
+												return (
+													<Link
+														to={`expressions/${key.toLowerCase()}`}
+														key={key}
+														className="flex flex-col relative overflow-hidden rounded-md group p-2 w-full"
+													>
+														<h2 className="text-sm text-white text-center font-bold uppercase">
+															{key}
+														</h2>
+														<Gallery
+															items={[
+																...expressions.sprayIds.map((spray) => ({
+																	icon:
+																		spray.animationGif ||
+																		spray.fullTransparentIcon ||
+																		spray.displayIcon,
+																	displayName: spray.displayName,
+																	duration: 1000,
+																})),
+																...expressions.flexIds.map((flex) => ({
+																	icon: flex.displayIcon,
+																	displayName: flex.displayName,
+																	duration: 1000,
+																})),
+															]}
+															render={(expression) => (
+																<div>
+																	<div className="h-24 aspect-square mx-auto">
+																		<img
+																			className="object-contain w-full h-full"
+																			src={expression.icon}
+																			alt={expression.displayName}
+																		/>
+																	</div>
+																	<h2 className="text-sm text-white font-bold text-center whitespace-nowrap overflow-hidden text-ellipsis mt-2">
+																		{expression.displayName}
+																	</h2>
 																</div>
-																<h2 className="text-sm text-white font-bold text-center whitespace-nowrap overflow-hidden text-ellipsis mt-2">
-																	{spray.displayName}
-																</h2>
-															</div>
-														)}
-													/>
-													<div className="grid place-items-center absolute left-0 top-0 w-full h-full bg-black/60 opacity-0 group-hover:opacity-100">
-														Edit
-													</div>
-												</Link>
-											);
-										})}
+															)}
+														/>
+														<div className="grid place-items-center absolute left-0 top-0 w-full h-full bg-black/60 opacity-0 group-hover:opacity-100">
+															Edit
+														</div>
+													</Link>
+												);
+											},
+										)}
 									</div>
 								</div>
 							</div>
@@ -492,7 +524,7 @@ export default function Index() {
 																				};
 																			});
 																		});
-																  })
+																	})
 																: [
 																		{
 																			buddy: null,
@@ -502,7 +534,7 @@ export default function Index() {
 																			},
 																			duration: 1000,
 																		},
-																  ]
+																	]
 														}
 														render={(item) => (
 															<>

@@ -7,12 +7,12 @@ import type {
 	Gun,
 	Identity,
 	Session,
-	EquippedSpray,
 	ValorantLoadout,
 	Shards,
 	PregamePlayer,
 	PregameMatch,
 	Regions,
+	ActiveExpression,
 } from 'types';
 import { entitlementIdToTypeMap } from 'types';
 
@@ -45,7 +45,7 @@ export function generateRequestHeaders(
 		entitlementsToken: string;
 		riotClientVersion: string;
 	},
-	extraHeaders: Record<string, string> = {}
+	extraHeaders: Record<string, string> = {},
 ) {
 	const defaultHeaders = {
 		Authorization: `Bearer ${args.accessToken}`,
@@ -57,7 +57,7 @@ export function generateRequestHeaders(
 				platformOS: 'Windows',
 				platformOSVersion: '10.0.19042.1.256.64bit',
 				platformChipset: 'Unknown',
-			})
+			}),
 		),
 	};
 
@@ -109,16 +109,16 @@ export class User {
 			Subject: string;
 			Version: number;
 			Guns: Gun[];
-			Sprays: EquippedSpray[];
+			ActiveExpressions: ActiveExpression[];
 			Identity: Identity;
 			Incognito: boolean;
 		}>(
-			`${getPlayerDataServiceUrl(this.region)}/personalization/v2/players/${
+			`${getPlayerDataServiceUrl(this.region)}/personalization/v3/players/${
 				this.userId
 			}/playerloadout`,
 			{
 				headers: this.requestHeaders,
-			}
+			},
 		);
 
 		return data;
@@ -133,18 +133,17 @@ export class User {
 			}`,
 			{
 				headers: this.requestHeaders,
-			}
+			},
 		);
 
 		return data.EntitlementsByTypes.reduce<EntitlementsByCategory>(
 			(acc, curr) => {
 				const entitlementType = entitlementIdToTypeMap[curr.ItemTypeID];
 				if (!entitlementType) {
-					console.warn('Unknown entitlement type');
 					return acc;
 				}
 
-				acc[entitlementType] = curr.Entitlements;
+				acc[entitlementType].push(...curr.Entitlements);
 				return acc;
 			},
 			{
@@ -154,9 +153,16 @@ export class User {
 				contract_definition: [],
 				buddy: [],
 				spray: [],
+				flex: [
+					{
+						ItemID: 'af52b5a0-4a4c-03b2-c9d7-8187a08a2675',
+						TypeID: '03a572de-4234-31ed-d344-ababa488f981',
+						InstanceID: 'af52b5a0-4a4c-03b2-c9d7-8187a08a2675',
+					},
+				],
 				player_card: [],
 				player_title: [],
-			}
+			} as EntitlementsByCategory,
 		);
 	}
 
@@ -173,7 +179,7 @@ export class User {
 			[this.userId],
 			{
 				headers: this.requestHeaders,
-			}
+			},
 		);
 
 		return data[0];
@@ -186,7 +192,7 @@ export class User {
 			}`,
 			{
 				headers: this.requestHeaders,
-			}
+			},
 		);
 
 		return data;
@@ -199,7 +205,7 @@ export class User {
 			}`,
 			{
 				headers: this.requestHeaders,
-			}
+			},
 		);
 
 		return data;
@@ -212,7 +218,7 @@ export class User {
 			}`,
 			{
 				headers: this.requestHeaders,
-			}
+			},
 		);
 
 		const { data: pregameData } = await httpClient.get<PregameMatch>(
@@ -221,7 +227,7 @@ export class User {
 			}`,
 			{
 				headers: this.requestHeaders,
-			}
+			},
 		);
 
 		return pregameData;
@@ -229,13 +235,13 @@ export class User {
 
 	async equipLoadout(loadout: ValorantLoadout) {
 		const { data } = await httpClient.put(
-			`${getPlayerDataServiceUrl(this.region)}/personalization/v2/players/${
+			`${getPlayerDataServiceUrl(this.region)}/personalization/v3/players/${
 				this.userId
 			}/playerloadout`,
 			loadout,
 			{
 				headers: this.requestHeaders,
-			}
+			},
 		);
 
 		return data;

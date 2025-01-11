@@ -1,5 +1,5 @@
 {
-	"editor.comments.insertSpace": false,
+	"editor.insertSpaces": false,
 	"editor.formatOnSave": true,
 	"editor.tabSize": 2,
 	"files.insertFinalNewline": true,

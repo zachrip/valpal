@@ -4,11 +4,11 @@ import {
 	useNavigate,
 	useParams,
 	useSubmit,
-} from '@remix-run/react';
+} from 'react-router';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import type { Loadout } from '~/utils';
-import type { ActionArgs, LoaderArgs } from '@remix-run/node';
-import { json, redirect } from '@remix-run/node';
+import type { ActionFunctionArgs, LoaderFunctionArgs } from 'react-router';
+import { redirect } from 'react-router';
 import { getUser, getUserConfig, saveUserConfig } from '~/utils.server';
 import { zfd } from 'zod-form-data';
 import { z } from 'zod';
@@ -17,21 +17,21 @@ const schema = zfd.formData({
 	playerCards: z.record(z.string(), zfd.checkbox()).optional(),
 });
 
-export async function action({ request, params }: ActionArgs) {
+export async function action({ request, params }: ActionFunctionArgs) {
 	const user = await getUser();
 	if (!user) {
-		return redirect('/login');
+		throw redirect('/login');
 	}
 
 	const { loadoutId } = params;
 
 	const userConfig = await getUserConfig(user.userId);
 	const loadout = userConfig.loadouts.find(
-		(loadout) => loadout.id === loadoutId
+		(loadout) => loadout.id === loadoutId,
 	);
 
 	if (!loadout) {
-		return redirect('/loadouts');
+		throw redirect('/loadouts');
 	}
 
 	const formData = await request.formData();
@@ -47,7 +47,7 @@ export async function action({ request, params }: ActionArgs) {
 				}
 				return acc;
 			},
-			[]
+			[],
 		),
 	};
 
@@ -58,27 +58,27 @@ export async function action({ request, params }: ActionArgs) {
 		],
 	});
 
-	return json({
+	return {
 		success: true,
-	});
+	};
 }
 
-export async function loader({ params }: LoaderArgs) {
+export async function loader({ params }: LoaderFunctionArgs) {
 	const user = await getUser();
 
 	if (!user) {
-		return redirect('/login');
+		throw redirect('/login');
 	}
 
 	const { loadoutId } = params;
 
 	const userConfig = await getUserConfig(user.userId);
 	const loadout = userConfig.loadouts.find(
-		(loadout) => loadout.id === loadoutId
+		(loadout) => loadout.id === loadoutId,
 	);
 
 	if (!loadout) {
-		return redirect('/loadouts');
+		throw redirect('/loadouts');
 	}
 
 	const entitlements = await user.getEntitlements();
@@ -87,15 +87,15 @@ export async function loader({ params }: LoaderArgs) {
 	const ownedPlayerCards = valorantData.playerCards
 		.filter((playerCard) =>
 			entitlements.player_card.some(
-				(entitlement) => entitlement.ItemID === playerCard.uuid
-			)
+				(entitlement) => entitlement.ItemID === playerCard.uuid,
+			),
 		)
 		.sort((a, b) => a.displayName.localeCompare(b.displayName));
 
-	return json({
+	return {
 		selectedPlayerCards,
 		ownedPlayerCards,
-	});
+	};
 }
 
 export default function AddPlayerCard() {
@@ -111,18 +111,37 @@ export default function AddPlayerCard() {
 			onOpenChange={() => navigate(`/loadouts/${params.loadoutId}`)}
 		>
 			<DialogPrimitive.Portal>
-				<DialogPrimitive.Overlay className="bg-black/60 fixed top-0 left-0 right-0 bottom-0 grid place-items-center">
-					<DialogPrimitive.Content className="w-full max-w-3xl h-3/5 overflow-auto p-4 bg-slate-700 rounded-md">
-						<DialogPrimitive.Title className="text-2xl">
-							Select Player Cards
-						</DialogPrimitive.Title>
+				<DialogPrimitive.Overlay className="bg-black/60 fixed inset-0 grid place-items-center">
+					<DialogPrimitive.Content className="w-full max-w-3xl h-3/5 bg-slate-700 rounded-md flex flex-col overflow-hidden">
+						<div className="flex flex-row items-center justify-between flex-none p-4 bg-slate-600">
+							<DialogPrimitive.Title className="text-2xl">
+								Select Player Cards
+							</DialogPrimitive.Title>
+							<DialogPrimitive.Close>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
+									className="w-6 h-6"
+								>
+									<path
+										strokeLinecap="round"
+										strokeLinejoin="round"
+										strokeWidth={2}
+										d="M6 18L18 6M6 6l12 12"
+									/>
+								</svg>
+							</DialogPrimitive.Close>
+						</div>
 						<Form
-							method="post"
+							method="POST"
 							onChange={(e) => {
 								submit(e.currentTarget, {
 									replace: true,
 								});
 							}}
+							className="flex-auto overflow-y-auto scrollbar-thin scrollbar-thumb-white scrollbar-track-transparent scrollbar-thumb-rounded-full px-4 mr-4 mb-4 mt-4"
 						>
 							<div className="grid grid-cols-4 gap-2 mt-2">
 								{ownedPlayerCards.map((playerCard) => (
@@ -133,7 +152,7 @@ export default function AddPlayerCard() {
 											type="checkbox"
 											className="hidden peer"
 											defaultChecked={selectedPlayerCards.includes(
-												playerCard.uuid
+												playerCard.uuid,
 											)}
 										/>
 										<label

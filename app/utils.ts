@@ -29,7 +29,7 @@ export type LoadoutV1 = {
 	};
 };
 
-export type Loadout = {
+export type LoadoutV2 = {
 	id: string;
 	name: string;
 	enabled: boolean;
@@ -59,16 +59,63 @@ export type Loadout = {
 	};
 };
 
+export type Loadout = {
+	id: string;
+	name: string;
+	enabled: boolean;
+	agentIds: Array<string>;
+	weapons: Record<
+		string,
+		{
+			templates: Array<{
+				id: string;
+				skinId: string;
+				levelIds: Array<string>;
+				chromaIds: Array<string>;
+				buddies: Array<{
+					id: string;
+					levelIds: Array<string>;
+				}>;
+			}>;
+		}
+	>;
+	playerCardIds: Array<string>;
+	playerTitleIds: Array<string>;
+	expressionIds: {
+		top: {
+			sprayIds: Array<string>;
+			flexIds: Array<string>;
+		};
+		right: {
+			sprayIds: Array<string>;
+			flexIds: Array<string>;
+		};
+		bottom: {
+			sprayIds: Array<string>;
+			flexIds: Array<string>;
+		};
+		left: {
+			sprayIds: Array<string>;
+			flexIds: Array<string>;
+		};
+	};
+};
+
 export type UserConfigV1 = {
 	loadouts: Array<LoadoutV1>;
 };
 
 export type UserConfigV2 = {
 	version: 2;
+	loadouts: Array<LoadoutV2>;
+};
+
+export type UserConfigV3 = {
+	version: 3;
 	loadouts: Array<Loadout>;
 };
 
-export { type UserConfigV2 as UserConfig };
+export { type UserConfigV3 as UserConfig };
 
 export const categoryNameMap: Record<WeaponCategory, string> = {
 	'EEquippableCategory::Sidearm': 'sidearms',
@@ -129,10 +176,13 @@ export const weaponUUIDCanonicalNameMap: Record<string, string> = {
 };
 
 export const weaponCanonicalNameUUIDMap: Record<string, string> =
-	Object.entries(weaponUUIDCanonicalNameMap).reduce((acc, [key, value]) => {
-		acc[value] = key;
-		return acc;
-	}, {} as Record<string, string>);
+	Object.entries(weaponUUIDCanonicalNameMap).reduce(
+		(acc, [key, value]) => {
+			acc[value] = key;
+			return acc;
+		},
+		{} as Record<string, string>,
+	);
 
 export const nameToIndex = Object.entries(sortedWeapons).reduce(
 	(acc, [_category, weapons]) => {
@@ -142,7 +192,7 @@ export const nameToIndex = Object.entries(sortedWeapons).reduce(
 		});
 		return acc;
 	},
-	{} as Record<string, number>
+	{} as Record<string, number>,
 );
 
 export const weaponUuidToIndex = Object.entries(sortedWeapons).reduce(
@@ -153,7 +203,7 @@ export const weaponUuidToIndex = Object.entries(sortedWeapons).reduce(
 		});
 		return acc;
 	},
-	{} as Record<string, number>
+	{} as Record<string, number>,
 );
 
 export type ResolvedWeapon = {
@@ -193,24 +243,24 @@ export type ResolvedWeapon = {
 
 export function getOwnedChromas(
 	skin: Weapon['skins'][number],
-	entitlements: EntitlementsByCategory
+	entitlements: EntitlementsByCategory,
 ) {
 	return skin.chromas.filter(
 		(chroma, index) =>
 			index === 0 ||
 			entitlements.skin_chroma.some(
-				(entitlement) => entitlement.ItemID === chroma.uuid
-			)
+				(entitlement) => entitlement.ItemID === chroma.uuid,
+			),
 	);
 }
 
 export function getOwnedLevels(
 	skin: Weapon['skins'][number],
-	entitlements: EntitlementsByCategory
+	entitlements: EntitlementsByCategory,
 ) {
 	return skin.levels.filter((level) =>
 		entitlements.skin_level.some(
-			(entitlement) => entitlement.ItemID === level.uuid
-		)
+			(entitlement) => entitlement.ItemID === level.uuid,
+		),
 	);
 }

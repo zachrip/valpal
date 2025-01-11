@@ -1,5 +1,5 @@
-import type { MetaFunction } from '@remix-run/node';
-import { redirect } from '@remix-run/node';
+import type { MetaFunction } from 'react-router';
+import { redirect } from 'react-router';
 
 import { getUser } from '~/utils.server';
 
@@ -7,18 +7,18 @@ export async function loader() {
 	const user = await getUser();
 
 	if (user) {
-		return redirect('/');
+		throw redirect('/');
 	}
 
 	return null;
 }
 
-export const meta: MetaFunction = () => ({
-	refresh: {
+export const meta: MetaFunction = () => [
+	{
 		httpEquiv: 'refresh',
 		content: '5',
 	},
-});
+];
 
 export default function Index() {
 	return (

@@ -4,6 +4,7 @@ import type {
 	PlayerCard,
 	Weapon,
 	Spray,
+	Flex,
 	Agent,
 	PlayerTitle,
 } from 'types';
@@ -33,6 +34,15 @@ async function getSprays() {
 		status: number;
 		data: Spray[];
 	}>('https://valorant-api.com/v1/sprays');
+
+	return data.data;
+}
+
+async function getFlexes() {
+	const { data } = await httpClient.get<{
+		status: number;
+		data: Flex[];
+	}>('https://valorant-api.com/v1/flex');
 
 	return data.data;
 }
@@ -74,21 +84,31 @@ async function getVersion() {
 }
 
 export async function initSkinData() {
-	const [weapons, buddies, sprays, playerCards, playerTitles, agents, version] =
-		await Promise.all([
-			getWeapons(),
-			getBuddies(),
-			getSprays(),
-			getPlayerCards(),
-			getPlayerTitles(),
-			getAgents(),
-			getVersion(),
-		]);
+	const [
+		weapons,
+		buddies,
+		sprays,
+		flex,
+		playerCards,
+		playerTitles,
+		agents,
+		version,
+	] = await Promise.all([
+		getWeapons(),
+		getBuddies(),
+		getSprays(),
+		getFlexes(),
+		getPlayerCards(),
+		getPlayerTitles(),
+		getAgents(),
+		getVersion(),
+	]);
 
 	global.valorantData = {
 		weapons,
 		buddies,
 		sprays,
+		flex,
 		playerCards,
 		playerTitles,
 		agents,
@@ -101,6 +121,7 @@ declare global {
 		weapons: Weapon[];
 		buddies: Buddy[];
 		sprays: Spray[];
+		flex: Flex[];
 		playerCards: PlayerCard[];
 		playerTitles: PlayerTitle[];
 		agents: Agent[];

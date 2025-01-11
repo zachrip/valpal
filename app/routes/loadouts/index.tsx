@@ -1,11 +1,11 @@
-import type { ActionArgs } from '@remix-run/node';
-import { json } from '@remix-run/node';
-import { redirect } from '@remix-run/node';
-import { Form, Link, useLoaderData } from '@remix-run/react';
+import type { ActionFunctionArgs } from 'react-router';
+import { redirect } from 'react-router';
+import { Form, Link, useLoaderData } from 'react-router';
+import { entitlementTypeToIdMap } from 'types';
 import { Gallery } from '~/components/Gallery';
 
 import { SwitchImage } from '~/components/SwitchImage';
-import { weaponUuidToIndex } from '~/utils';
+import { Loadout, weaponUuidToIndex } from '~/utils';
 import {
 	getDefaultLoadout,
 	getUser,
@@ -14,11 +14,11 @@ import {
 	saveUserConfig,
 } from '~/utils.server';
 
-export const action = async ({ request }: ActionArgs) => {
+export const action = async ({ request }: ActionFunctionArgs) => {
 	const user = await getUser();
 
 	if (!user) {
-		return redirect('/login');
+		throw redirect('/login');
 	}
 
 	const formData = await request.formData();
@@ -39,50 +39,50 @@ export const action = async ({ request }: ActionArgs) => {
 			config.loadouts.push(newLoadout);
 
 			await saveUserConfig(user.userId, config);
-			return redirect(`/loadouts/${newLoadout.id}`);
+			throw redirect(`/loadouts/${newLoadout.id}`);
 		}
 		case 'equip': {
 			const loadoutId = formData.get('loadoutId') as string;
 			const config = await getUserConfig(user.userId);
 			const loadout = config.loadouts.find(
-				(loadout) => loadout.id === loadoutId
+				(loadout) => loadout.id === loadoutId,
 			);
 
 			if (!loadout) {
-				return redirect('/loadouts');
+				throw redirect('/loadouts');
 			}
 
 			await appManager.equipLoadout(user, loadout);
 
-			return json({ success: true });
+			return { success: true };
 		}
 		case 'enable':
 		case 'disable': {
 			const loadoutId = formData.get('loadoutId') as string;
 			const config = await getUserConfig(user.userId);
 			const loadout = config.loadouts.find(
-				(loadout) => loadout.id === loadoutId
+				(loadout) => loadout.id === loadoutId,
 			);
 
 			if (!loadout) {
-				return redirect('/loadouts');
+				throw redirect('/loadouts');
 			}
 
 			loadout.enabled = action === 'enable';
 
 			await saveUserConfig(user.userId, config);
 
-			return json({ success: true });
+			return { success: true };
 		}
 		case 'duplicate': {
 			const loadoutId = formData.get('loadoutId') as string;
 			const config = await getUserConfig(user.userId);
 			const loadout = config.loadouts.find(
-				(loadout) => loadout.id === loadoutId
+				(loadout) => loadout.id === loadoutId,
 			);
 
 			if (!loadout) {
-				return redirect('/loadouts');
+				throw redirect('/loadouts');
 			}
 
 			const newLoadout = {
@@ -95,25 +95,105 @@ export const action = async ({ request }: ActionArgs) => {
 
 			await saveUserConfig(user.userId, config);
 
-			return redirect(`/loadouts/${newLoadout.id}`);
+			throw redirect(`/loadouts/${newLoadout.id}`);
 		}
 		case 'delete': {
 			const loadoutId = formData.get('loadoutId') as string;
 
 			const config = await getUserConfig(user.userId);
 			const loadoutIndex = config.loadouts.findIndex(
-				(loadout) => loadout.id === loadoutId
+				(loadout) => loadout.id === loadoutId,
 			);
 
 			if (loadoutIndex === -1) {
-				return redirect('/loadouts');
+				throw redirect('/loadouts');
 			}
 
 			config.loadouts.splice(loadoutIndex, 1);
 
 			await saveUserConfig(user.userId, config);
 
-			return json({ success: true });
+			return { success: true };
+		}
+		case 'save-in-game': {
+			const currentInGameLoadout = await user.getLoadout();
+			const config = await getUserConfig(user.userId);
+
+			const [top, right, bottom, left] = currentInGameLoadout.ActiveExpressions;
+
+			const newLoadout: Loadout = {
+				...getDefaultLoadout(),
+				name: 'In-Game Loadout',
+				enabled: true,
+				id: randomUUID(),
+				weapons: Object.fromEntries(
+					currentInGameLoadout.Guns.map((gun) => [
+						gun.ID,
+						{
+							templates: [
+								{
+									id: gun.ID,
+									skinId: gun.SkinID,
+									buddies: gun.CharmID
+										? [
+												{
+													id: gun.CharmID,
+													levelIds: gun.CharmLevelID ? [gun.CharmLevelID] : [],
+												},
+											]
+										: [],
+									chromaIds: [gun.ChromaID],
+									levelIds: [gun.SkinLevelID],
+								},
+							],
+						},
+					]),
+				),
+				expressionIds: {
+					top: {
+						sprayIds:
+							top.TypeID === entitlementTypeToIdMap.spray ? [top.AssetID] : [],
+						flexIds:
+							top.TypeID === entitlementTypeToIdMap.flex ? [top.AssetID] : [],
+					},
+					right: {
+						sprayIds:
+							right.TypeID === entitlementTypeToIdMap.spray
+								? [right.AssetID]
+								: [],
+						flexIds:
+							right.TypeID === entitlementTypeToIdMap.flex
+								? [right.AssetID]
+								: [],
+					},
+					bottom: {
+						sprayIds:
+							bottom.TypeID === entitlementTypeToIdMap.spray
+								? [bottom.AssetID]
+								: [],
+						flexIds:
+							bottom.TypeID === entitlementTypeToIdMap.flex
+								? [bottom.AssetID]
+								: [],
+					},
+					left: {
+						sprayIds:
+							left.TypeID === entitlementTypeToIdMap.spray
+								? [left.AssetID]
+								: [],
+						flexIds:
+							left.TypeID === entitlementTypeToIdMap.flex ? [left.AssetID] : [],
+					},
+				},
+				playerCardIds: [currentInGameLoadout.Identity.PlayerCardID],
+				playerTitleIds: [currentInGameLoadout.Identity.PlayerTitleID],
+			};
+
+			config.loadouts.push(newLoadout);
+
+			await saveUserConfig(user.userId, config);
+
+			throw redirect(`/loadouts/${newLoadout.id}`);
 		}
 		default: {
 			throw new Error('Invalid action');
@@ -125,7 +205,7 @@ export const loader = async () => {
 	const user = await getUser();
 
 	if (!user) {
-		return redirect('/login');
+		throw redirect('/login');
 	}
 
 	const userConfig = await getUserConfig(user.userId);
@@ -146,7 +226,7 @@ export const loader = async () => {
 				name: loadout.name,
 				enabled: loadout.enabled,
 				agents: loadout.agentIds.map(
-					(id) => valorantData.agents.find((a) => a.uuid === id)!
+					(id) => valorantData.agents.find((a) => a.uuid === id)!,
 				),
 				playerCards: (loadout.playerCardIds.length
 					? loadout.playerCardIds
@@ -156,37 +236,65 @@ export const loader = async () => {
 					? loadout.playerTitleIds
 					: ['d13e579c-435e-44d4-cec2-6eae5a3c5ed4']
 				).map(
-					(id) => valorantData.playerTitles.find((title) => title.uuid === id)!
+					(id) => valorantData.playerTitles.find((title) => title.uuid === id)!,
 				),
-				sprays: {
-					top: (loadout.sprayIds.top.length
-						? loadout.sprayIds.top
-						: ['0a6db78c-48b9-a32d-c47a-82be597584c1']
-					).map(
-						(sprayId) =>
-							valorantData.sprays.find((spray) => spray.uuid === sprayId)!
-					),
-					right: (loadout.sprayIds.right.length
-						? loadout.sprayIds.right
-						: ['0a6db78c-48b9-a32d-c47a-82be597584c1']
-					).map(
-						(sprayId) =>
-							valorantData.sprays.find((spray) => spray.uuid === sprayId)!
-					),
-					bottom: (loadout.sprayIds.bottom.length
-						? loadout.sprayIds.bottom
-						: ['0a6db78c-48b9-a32d-c47a-82be597584c1']
-					).map(
-						(sprayId) =>
-							valorantData.sprays.find((spray) => spray.uuid === sprayId)!
-					),
-					left: (loadout.sprayIds.bottom.length
-						? loadout.sprayIds.left
-						: ['0a6db78c-48b9-a32d-c47a-82be597584c1']
-					).map(
-						(sprayId) =>
-							valorantData.sprays.find((spray) => spray.uuid === sprayId)!
-					),
+				expressions: {
+					top: {
+						sprayIds: (loadout.expressionIds.top.sprayIds.length ||
+						loadout.expressionIds.top.flexIds.length
+							? loadout.expressionIds.top.sprayIds
+							: ['0a6db78c-48b9-a32d-c47a-82be597584c1']
+						).map(
+							(sprayId) =>
+								valorantData.sprays.find((spray) => spray.uuid === sprayId)!,
+						),
+						flexIds: loadout.expressionIds.top.flexIds.map(
+							(flexId) =>
+								valorantData.flex.find((flex) => flex.uuid === flexId)!,
+						),
+					},
+					right: {
+						sprayIds: (loadout.expressionIds.right.sprayIds.length ||
+						loadout.expressionIds.right.flexIds.length
+							? loadout.expressionIds.right.sprayIds
+							: ['0a6db78c-48b9-a32d-c47a-82be597584c1']
+						).map(
+							(sprayId) =>
+								valorantData.sprays.find((spray) => spray.uuid === sprayId)!,
+						),
+						flexIds: loadout.expressionIds.right.flexIds.map(
+							(flexId) =>
+								valorantData.flex.find((flex) => flex.uuid === flexId)!,
+						),
+					},
+					bottom: {
+						sprayIds: (loadout.expressionIds.bottom.sprayIds.length ||
+						loadout.expressionIds.bottom.flexIds.length
+							? loadout.expressionIds.bottom.sprayIds
+							: ['0a6db78c-48b9-a32d-c47a-82be597584c1']
+						).map(
+							(sprayId) =>
+								valorantData.sprays.find((spray) => spray.uuid === sprayId)!,
+						),
+						flexIds: loadout.expressionIds.bottom.flexIds.map(
+							(flexId) =>
+								valorantData.flex.find((flex) => flex.uuid === flexId)!,
+						),
+					},
+					left: {
+						sprayIds: loadout.expressionIds.left.sprayIds.map(
+							(sprayId) =>
+								valorantData.sprays.find((spray) => spray.uuid === sprayId)!,
+						),
+						flexIds: (loadout.expressionIds.left.flexIds.length ||
+						loadout.expressionIds.left.sprayIds.length
+							? loadout.expressionIds.left.flexIds
+							: ['af52b5a0-4a4c-03b2-c9d7-8187a08a2675']
+						).map(
+							(flexId) =>
+								valorantData.flex.find((flex) => flex.uuid === flexId)!,
+						),
+					},
 				},
 				weapons: Object.entries(loadout.weapons)
 					.sort((a, b) => {
@@ -206,14 +314,14 @@ export const loader = async () => {
 							uuid: weapon.uuid,
 							templates: templates.map((template) => {
 								const skin = weapon.skins.find(
-									(skin) => skin.uuid === template.skinId
+									(skin) => skin.uuid === template.skinId,
 								)!;
 								const chromas = skin.chromas.filter((chroma) =>
-									template.chromaIds.includes(chroma.uuid)
+									template.chromaIds.includes(chroma.uuid),
 								);
 								const buddies = template.buddies.flatMap((buddy) => {
 									const buddyData = valorantData.buddies.find(
-										(b) => b.uuid === buddy.id
+										(b) => b.uuid === buddy.id,
 									)!;
 
 									return buddy.levelIds.flatMap((levelId) => {
@@ -238,9 +346,9 @@ export const loader = async () => {
 			};
 		});
 
-	return json({
+	return {
 		loadouts,
-	});
+	};
 };
 
 const buttonStyles =
@@ -253,17 +361,28 @@ export default function Index() {
 		<div className="p-6">
 			<div className="flex flex-row justify-between items-center">
 				<h1 className="text-white text-3xl font-bold uppercase">Loadouts</h1>
-				<div className="flex flex-row gap-4">
-					<Form action="/loadouts?index" method="post">
-						<input type="hidden" name="action" value="create" />
-						<button
-							className={buttonStyles + ' flex flex-row items-center gap-1'}
-						>
-							New Loadout
-							<span className="text-2xl">+</span>
-						</button>
-					</Form>
-				</div>
+				<Form
+					action="/loadouts?index"
+					method="POST"
+					className="flex flex-row gap-4"
+				>
+					<button
+						className={buttonStyles + ' flex flex-row items-center gap-1'}
+						name="action"
+						value="save-in-game"
+					>
+						Save In-Game Loadout
+						<span className="text-2xl">+</span>
+					</button>
+					<button
+						className={buttonStyles + ' flex flex-row items-center gap-1'}
+						name="action"
+						value="create"
+					>
+						New Loadout
+						<span className="text-2xl">+</span>
+					</button>
+				</Form>
 			</div>
 			<div className="grid grid-cols-1 mt-4 gap-4">
 				{loadouts.map((loadout) => {
@@ -317,25 +436,33 @@ export default function Index() {
 										)}
 									/>
 									<div className="grid grid-cols-1 place-items-center gap-2 p-2">
-										{Object.entries(loadout.sprays).map(([key, sprays]) => {
-											return (
-												<div
-													key={key}
-													className="flex flex-row bg-slate-700 p-2 hover:bg-slate-500 rounded-md"
-												>
-													<SwitchImage
-														className="object-contain h-24"
-														images={sprays.map((spray) => ({
-															src:
-																spray.animationGif ||
-																spray.fullTransparentIcon ||
-																spray.displayIcon,
-															alt: spray.displayName,
-														}))}
-													/>
-												</div>
-											);
-										})}
+										{Object.entries(loadout.expressions).map(
+											([key, sprays]) => {
+												return (
+													<div
+														key={key}
+														className="flex flex-row bg-slate-700 p-2 hover:bg-slate-500 rounded-md"
+													>
+														<SwitchImage
+															className="object-contain h-24"
+															images={[
+																...sprays.sprayIds.map((spray) => ({
+																	src:
+																		spray.animationGif ||
+																		spray.fullTransparentIcon ||
+																		spray.displayIcon,
+																	alt: spray.displayName,
+																})),
+																...sprays.flexIds.map((flex) => ({
+																	src: flex.displayIcon,
+																	alt: flex.displayName,
+																})),
+															]}
+														/>
+													</div>
+												);
+											},
+										)}
 									</div>
 								</div>
 								<div className="grid gap-4 grid-cols-2 lg:grid-cols-4 px-4">
@@ -391,7 +518,7 @@ export default function Index() {
 																			};
 																		});
 																	});
-															  })
+																})
 															: [
 																	{
 																		buddy: null,
@@ -401,7 +528,7 @@ export default function Index() {
 																		},
 																		duration: 1000,
 																	},
-															  ]
+																]
 													}
 													render={(item) => (
 														<>
@@ -426,7 +553,7 @@ export default function Index() {
 								</div>
 							</div>
 							<div className="mt-2 px-4 flex flex-row gap-2 items-start justify-end">
-								<Form action="/loadouts?index" method="post">
+								<Form action="/loadouts?index" method="POST">
 									<input
 										type="hidden"
 										name="action"
@@ -437,12 +564,12 @@ export default function Index() {
 										{loadout.enabled ? 'Disable' : 'Enable'}
 									</button>
 								</Form>
-								<Form action="/loadouts?index" method="post">
+								<Form action="/loadouts?index" method="POST">
 									<input type="hidden" name="action" value="duplicate" />
 									<input type="hidden" name="loadoutId" value={loadout.id} />
 									<button className={buttonStyles}>Duplicate</button>
 								</Form>
-								<Form action="/loadouts?index" method="post">
+								<Form action="/loadouts?index" method="POST">
 									<input type="hidden" name="action" value="equip" />
 									<input type="hidden" name="loadoutId" value={loadout.id} />
 									<button className={buttonStyles}>Equip Loadout</button>
@@ -450,7 +577,7 @@ export default function Index() {
 								<Link to={`/loadouts/${loadout.id}`} className={buttonStyles}>
 									Edit
 								</Link>
-								<Form action="/loadouts?index" method="post">
+								<Form action="/loadouts?index" method="POST">
 									<input type="hidden" name="action" value="delete" />
 									<input type="hidden" name="loadoutId" value={loadout.id} />
 									<button className={buttonStyles}>Delete</button>
