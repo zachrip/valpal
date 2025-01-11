@@ -1,9 +1,9 @@
-import { Form, useLoaderData, useNavigate, useParams } from '@remix-run/react';
+import { Form, useLoaderData, useNavigate, useParams } from 'react-router';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import type { Loadout } from '~/utils';
 import { getOwnedChromas, getOwnedLevels } from '~/utils';
-import type { ActionArgs, LoaderArgs } from '@remix-run/node';
-import { json, redirect } from '@remix-run/node';
+import type { ActionFunctionArgs, LoaderFunctionArgs } from 'react-router';
+import { redirect } from 'react-router';
 import { getUser, getUserConfig, saveUserConfig } from '~/utils.server';
 import { zfd } from 'zod-form-data';
 import { z } from 'zod';
@@ -17,21 +17,21 @@ const schema = zfd.formData({
 		.optional(),
 });
 
-export async function action({ request, params }: ActionArgs) {
+export async function action({ request, params }: ActionFunctionArgs) {
 	const user = await getUser();
 	if (!user) {
-		return redirect('/login');
+		throw redirect('/login');
 	}
 
 	const { loadoutId, weaponId } = params;
 
 	const userConfig = await getUserConfig(user.userId);
 	const loadout = userConfig.loadouts.find(
-		(loadout) => loadout.id === loadoutId
+		(loadout) => loadout.id === loadoutId,
 	);
 
 	if (!loadout) {
-		return redirect('/loadouts');
+		throw redirect('/loadouts');
 	}
 
 	const formData = await request.formData();
@@ -45,7 +45,7 @@ export async function action({ request, params }: ActionArgs) {
 	}
 
 	const existingTemplate = existingWeapon.templates.find(
-		(template) => template.id === params.templateId
+		(template) => template.id === params.templateId,
 	);
 
 	if (!existingTemplate) {
@@ -69,7 +69,7 @@ export async function action({ request, params }: ActionArgs) {
 		buddies: Object.keys(out.buddies || {}).map((buddyId) => ({
 			id: buddyId,
 			levelIds: Object.keys(out.buddies![buddyId]).filter(
-				(key) => out.buddies![buddyId][key]
+				(key) => out.buddies![buddyId][key],
 			),
 		})),
 	};
@@ -78,7 +78,7 @@ export async function action({ request, params }: ActionArgs) {
 	newTemplates.splice(
 		newTemplates.findIndex((t) => t.id === params.templateId),
 		1,
-		newTemplate
+		newTemplate,
 	);
 
 	const newWeapon: Loadout['weapons'][number] = {
@@ -101,25 +101,25 @@ export async function action({ request, params }: ActionArgs) {
 		],
 	});
 
-	return redirect(`/loadouts/${loadoutId}/weapons/${weaponId}`);
+	throw redirect(`/loadouts/${loadoutId}/weapons/${weaponId}`);
 }
 
-export async function loader({ params }: LoaderArgs) {
+export async function loader({ params }: LoaderFunctionArgs) {
 	const user = await getUser();
 
 	if (!user) {
-		return redirect('/login');
+		throw redirect('/login');
 	}
 
 	const { loadoutId, weaponId } = params;
 
 	const userConfig = await getUserConfig(user.userId);
 	const loadout = userConfig.loadouts.find(
-		(loadout) => loadout.id === loadoutId
+		(loadout) => loadout.id === loadoutId,
 	);
 
 	if (!loadout) {
-		return redirect('/loadouts');
+		throw redirect('/loadouts');
 	}
 
 	const weapons = valorantData.weapons;
@@ -129,7 +129,7 @@ export async function loader({ params }: LoaderArgs) {
 	const templates = loadout.weapons[weaponId!].templates;
 
 	const template = templates.find(
-		(template) => template.id === params.templateId
+		(template) => template.id === params.templateId,
 	)!;
 
 	const skin = weapon.skins.find((skin) => skin.uuid === template.skinId)!;
@@ -145,13 +145,13 @@ export async function loader({ params }: LoaderArgs) {
 				}))
 				.filter((buddy) =>
 					entitlements.buddy.some(
-						(entitlement) => entitlement.ItemID === buddy.levelId
-					)
-				)
+						(entitlement) => entitlement.ItemID === buddy.levelId,
+					),
+				),
 		)
 		.sort((a, b) => a.displayName.localeCompare(b.displayName));
 
-	return json({
+	return {
 		weapon,
 		skin: {
 			...skin,
@@ -160,7 +160,7 @@ export async function loader({ params }: LoaderArgs) {
 		},
 		ownedBuddies,
 		template,
-	});
+	};
 }
 
 export default function EditSkin() {
@@ -177,105 +177,127 @@ export default function EditSkin() {
 			}
 		>
 			<DialogPrimitive.Portal>
-				<DialogPrimitive.Overlay className="bg-black/60 fixed top-0 left-0 right-0 bottom-0 grid place-items-center">
-					<DialogPrimitive.Content className="w-full max-w-3xl h-3/5 overflow-auto p-4 bg-slate-700 rounded-md">
-						<DialogPrimitive.Title className="text-2xl">
-							{skin.displayName}
-						</DialogPrimitive.Title>
-						<Form method="put">
-							<input type="hidden" name="skinId" value={skin.uuid} readOnly />
-							<div className="flex justify-center my-6">
-								<img
-									className="max-h-64"
-									src={skin.displayIcon}
-									alt={skin.displayName}
-								/>
-							</div>
-							<h1 className="text-xl">Chromas</h1>
-							<div className="grid grid-cols-4 gap-2 mt-2">
-								{skin.ownedChromas.map((chroma) => (
-									<div key={chroma.uuid} className="aspect-video">
-										<input
-											id={chroma.uuid}
-											name={`chromas[${chroma.uuid}]`}
-											type="checkbox"
-											className="hidden peer"
-											defaultChecked={template.chromaIds.includes(chroma.uuid)}
-										/>
-										<label
-											htmlFor={chroma.uuid}
-											className="block w-full h-full p-2 peer-checked:bg-slate-500 hover:bg-slate-500 rounded-md"
-										>
-											<img
-												className="w-full h-full object-contain"
-												src={chroma.fullRender}
-												alt={chroma.displayName}
+				<DialogPrimitive.Overlay className="bg-black/60 fixed inset-0 grid place-items-center">
+					<DialogPrimitive.Content className="w-full max-w-3xl h-3/5 bg-slate-700 rounded-md flex flex-col overflow-hidden">
+						<div className="flex flex-row items-center justify-between flex-none p-4 bg-slate-600">
+							<DialogPrimitive.Title className="text-2xl">
+								{skin.displayName}
+							</DialogPrimitive.Title>
+							<DialogPrimitive.Close>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
+									className="w-6 h-6"
+								>
+									<path
+										strokeLinecap="round"
+										strokeLinejoin="round"
+										strokeWidth={2}
+										d="M6 18L18 6M6 6l12 12"
+									/>
+								</svg>
+							</DialogPrimitive.Close>
+						</div>
+						<Form method="PUT" className="contents">
+							<div className="flex-auto overflow-y-auto scrollbar-thin scrollbar-thumb-white scrollbar-track-transparent scrollbar-thumb-rounded-full px-4 mr-4 mb-4 mt-4">
+								<input type="hidden" name="skinId" value={skin.uuid} readOnly />
+								<div className="flex justify-center my-6">
+									<img
+										className="max-h-64"
+										src={skin.displayIcon}
+										alt={skin.displayName}
+									/>
+								</div>
+								<h1 className="text-xl">Chromas</h1>
+								<div className="grid grid-cols-4 gap-2 mt-2">
+									{skin.ownedChromas.map((chroma) => (
+										<div key={chroma.uuid} className="aspect-video">
+											<input
+												id={chroma.uuid}
+												name={`chromas[${chroma.uuid}]`}
+												type="checkbox"
+												className="hidden peer"
+												defaultChecked={template.chromaIds.includes(
+													chroma.uuid,
+												)}
 											/>
-										</label>
-									</div>
-								))}
-							</div>
-							<h1 className="text-xl mt-4">Levels</h1>
-							<div className="grid grid-cols-4 gap-2 mt-2">
-								{skin.ownedLevels.map((level, index) => (
-									<div key={level.uuid} className="aspect-video">
-										<input
-											id={level.uuid}
-											name={`levels[${level.uuid}]`}
-											type="checkbox"
-											className="hidden peer"
-											defaultChecked={template.levelIds.includes(level.uuid)}
-										/>
-										<label
-											htmlFor={level.uuid}
-											className="flex w-full h-full justify-center items-center p-2 peer-checked:bg-slate-500 hover:bg-slate-500 rounded-md"
-										>
-											{index + 1}
-										</label>
-									</div>
-								))}
-							</div>
-							{weapon.uuid !== '2f59173c-4bed-b6c3-2191-dea9b58be9c7' && (
-								<>
-									<h1 className="text-xl mt-4">Buddies</h1>
-									<div className="grid grid-cols-4 gap-2 mt-2 overflow-auto max-h-96">
-										{ownedBuddies.map((buddy) => (
-											<div key={buddy.buddyId + buddy.levelId}>
-												<input
-													id={buddy.buddyId + buddy.levelId}
-													name={`buddies[${buddy.buddyId}][${buddy.levelId}]`}
-													type="checkbox"
-													className="hidden peer"
-													defaultChecked={template.buddies.some(
-														(b) =>
-															b.id === buddy.buddyId &&
-															b.levelIds.includes(buddy.levelId)
-													)}
+											<label
+												htmlFor={chroma.uuid}
+												className="block w-full h-full p-2 peer-checked:bg-slate-500 hover:bg-slate-500 rounded-md"
+											>
+												<img
+													className="w-full h-full object-contain"
+													src={chroma.fullRender}
+													alt={chroma.displayName}
 												/>
-												<label
-													htmlFor={buddy.buddyId + buddy.levelId}
-													className="block w-full h-full p-2 peer-checked:bg-slate-500 hover:bg-slate-500 rounded-md"
-												>
-													<div className="w-full aspect-square">
-														<img
-															className="w-full h-full object-contain"
-															src={buddy.displayIcon}
-															alt={buddy.displayName}
-														/>
-													</div>
-													<h2 className="text-sm text-white font-bold text-center whitespace-nowrap overflow-hidden text-ellipsis mt-2">
-														{buddy.displayName.slice(0, -6)}
-													</h2>
-												</label>
-											</div>
-										))}
-									</div>
-								</>
-							)}
-							<div>
+											</label>
+										</div>
+									))}
+								</div>
+								<h1 className="text-xl mt-4">Levels</h1>
+								<div className="grid grid-cols-4 gap-2 mt-2">
+									{skin.ownedLevels.map((level, index) => (
+										<div key={level.uuid} className="aspect-video">
+											<input
+												id={level.uuid}
+												name={`levels[${level.uuid}]`}
+												type="checkbox"
+												className="hidden peer"
+												defaultChecked={template.levelIds.includes(level.uuid)}
+											/>
+											<label
+												htmlFor={level.uuid}
+												className="flex w-full h-full justify-center items-center p-2 peer-checked:bg-slate-500 hover:bg-slate-500 rounded-md"
+											>
+												{index + 1}
+											</label>
+										</div>
+									))}
+								</div>
+								{weapon.uuid !== '2f59173c-4bed-b6c3-2191-dea9b58be9c7' && (
+									<>
+										<h1 className="text-xl mt-4">Buddies</h1>
+										<div className="grid grid-cols-4 gap-2 max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-white scrollbar-track-transparent scrollbar-thumb-rounded-full px-4 mr-4 mb-4 mt-4">
+											{ownedBuddies.map((buddy) => (
+												<div key={buddy.buddyId + buddy.levelId}>
+													<input
+														id={buddy.buddyId + buddy.levelId}
+														name={`buddies[${buddy.buddyId}][${buddy.levelId}]`}
+														type="checkbox"
+														className="hidden peer"
+														defaultChecked={template.buddies.some(
+															(b) =>
+																b.id === buddy.buddyId &&
+																b.levelIds.includes(buddy.levelId),
+														)}
+													/>
+													<label
+														htmlFor={buddy.buddyId + buddy.levelId}
+														className="block w-full h-full p-2 peer-checked:bg-slate-500 hover:bg-slate-500 rounded-md"
+													>
+														<div className="w-full aspect-square">
+															<img
+																className="w-full h-full object-contain"
+																src={buddy.displayIcon}
+																alt={buddy.displayName}
+															/>
+														</div>
+														<h2 className="text-sm text-white font-bold text-center whitespace-nowrap overflow-hidden text-ellipsis mt-2">
+															{buddy.displayName.slice(0, -6)}
+														</h2>
+													</label>
+												</div>
+											))}
+										</div>
+									</>
+								)}
+							</div>
+							<div className="p-4">
 								<button
 									type="submit"
-									className="w-full mt-4 p-2 bg-slate-500 rounded-md"
+									className="w-full p-2 bg-slate-500 rounded-md"
 								>
 									Save
 								</button>

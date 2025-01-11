@@ -1,15 +1,15 @@
-import { redirect } from '@remix-run/node';
-import { useLoaderData } from '@remix-run/react';
+import { redirect } from 'react-router';
+import { useLoaderData } from 'react-router';
 import { getUser } from '~/utils.server';
 
 export async function loader() {
 	const user = await getUser();
 
 	if (!user) {
-		return redirect('/login');
+		throw redirect('/login');
 	}
 
-	return redirect('/loadouts');
+	throw redirect('/loadouts');
 }
 
 export default function Index() {

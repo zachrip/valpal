@@ -24,12 +24,6 @@ export const regionToShard: Record<Regions, Shards> = {
 	[Regions.Brazil]: Shards.NorthAmerica,
 };
 
-export interface EquippedSpray {
-	EquipSlotID: string;
-	SprayID: string;
-	SprayLevelID: string | null;
-}
-
 export interface AdsStats {
 	zoomMultiplier: number;
 	fireRate: number;
@@ -169,10 +163,9 @@ export interface Gun {
 	Attachments: any[];
 }
 
-export interface EquippedSpray {
-	EquipSlotID: string;
-	SprayID: string;
-	SprayLevelID: string | null;
+export interface ActiveExpression {
+	TypeID: string;
+	AssetID: string;
 }
 
 export interface Identity {
@@ -240,6 +233,7 @@ type EntitlementTypes =
 	| 'contract_definition'
 	| 'buddy'
 	| 'spray'
+	| 'flex'
 	| 'player_card'
 	| 'player_title';
 
@@ -250,8 +244,21 @@ export const entitlementIdToTypeMap: Record<string, EntitlementTypes> = {
 	'f85cb6f7-33e5-4dc8-b609-ec7212301948': 'contract_definition',
 	'dd3bf334-87f3-40bd-b043-682a57a8dc3a': 'buddy',
 	'd5f120f8-ff8c-4aac-92ea-f2b5acbe9475': 'spray',
+	'03a572de-4234-31ed-d344-ababa488f981': 'flex',
 	'3f296c07-64c3-494c-923b-fe692a4fa1bd': 'player_card',
 	'de7caa6b-adf7-4588-bbd1-143831e786c6': 'player_title',
+};
+
+export const entitlementTypeToIdMap: Record<EntitlementTypes, string> = {
+	skin_level: 'e7c63390-eda7-46e0-bb7a-a6abdacd2433',
+	skin_chroma: '3ad1b2b2-acdb-4524-852f-954a76ddae0a',
+	agent: '01bb38e1-da47-4e6a-9b3d-945fe4655707',
+	contract_definition: 'f85cb6f7-33e5-4dc8-b609-ec7212301948',
+	buddy: 'dd3bf334-87f3-40bd-b043-682a57a8dc3a',
+	spray: 'd5f120f8-ff8c-4aac-92ea-f2b5acbe9475',
+	flex: '03a572de-4234-31ed-d344-ababa488f981',
+	player_card: '3f296c07-64c3-494c-923b-fe692a4fa1bd',
+	player_title: 'de7caa6b-adf7-4588-bbd1-143831e786c6',
 };
 
 export interface ClientPlatformInfo {
@@ -399,10 +406,9 @@ export type ValorantLoadout = {
 		ChromaID: string;
 		Attachments: Array<any>;
 	}>;
-	Sprays: Array<{
-		EquipSlotID: string;
-		SprayID: string;
-		SprayLevelID: string | null;
+	ActiveExpressions: Array<{
+		TypeID: string;
+		AssetID: string;
 	}>;
 	Identity: {
 		PlayerCardID: string;
@@ -446,6 +452,13 @@ export type Spray = {
 	animationGif: string;
 	assetPath: string;
 	levels: SprayLevel[];
+};
+
+export type Flex = {
+	uuid: string;
+	displayName: string;
+	displayIcon: string;
+	assetPath: string;
 };
 
 export type PlayerTitle = {

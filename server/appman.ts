@@ -1,8 +1,9 @@
-import WebSocket from 'ws';
-import open from 'open';
 import { NotifyIcon, Icon, Menu } from 'not-the-systray';
-
-import type { Agent, ValorantLoadout } from 'types';
+import {
+	entitlementTypeToIdMap,
+	type Agent,
+	type ValorantLoadout,
+} from 'types';
 import type { Loadout } from '~/utils';
 import {
 	getLockfile,
@@ -11,6 +12,12 @@ import {
 	randomItem,
 } from '~/utils.server';
 import type { User } from './userman';
+import { exec } from 'child_process';
+import WebSocket from 'ws';
+
+function open(url: string) {
+	exec(`start ${url}`);
+}
 
 function tryParseJson<T>(json: string): T | null {
 	try {
@@ -119,14 +126,13 @@ export class AppManager {
 			}
 
 			const { port, password } = lockfile;
-
-			const ws = new WebSocket(`wss://riot:${password}@localhost:${port}`, {
+			const ws = new WebSocket(`wss://riot:${password}@127.0.0.1:${port}`, {
 				rejectUnauthorized: false,
 			});
 
 			const matchCharacterSelectionStates = new Map<string, string>();
 
-			ws.on('open', async () => {
+			ws.addEventListener('open', async () => {
 				try {
 					console.log('Connected to websocket');
 					ws.send(JSON.stringify([5, 'OnJsonApiEvent']));
@@ -137,10 +143,10 @@ export class AppManager {
 
 			let abortController: AbortController = new AbortController();
 
-			ws.on('message', async (data) => {
+			ws.addEventListener('message', async ({ data }) => {
 				try {
 					const parsed = tryParseJson<[number, string, object]>(
-						data.toString()
+						data.toString(),
 					);
 
 					if (!parsed) {
@@ -181,7 +187,7 @@ export class AppManager {
 						const match = await user.getPregame();
 
 						const player = match.AllyTeam.Players.find(
-							(player) => player.Subject === user.userId
+							(player) => player.Subject === user.userId,
 						);
 
 						const newState = player?.CharacterSelectionState;
@@ -193,7 +199,7 @@ export class AppManager {
 							if (newState === 'locked' && this.isAutoShuffleEnabled) {
 								this.equip(
 									user,
-									this.isAgentDetectionEnabled ? player.CharacterID : undefined
+									this.isAgentDetectionEnabled ? player.CharacterID : undefined,
 								);
 							}
 
@@ -205,7 +211,7 @@ export class AppManager {
 				}
 			});
 
-			ws.on('close', () => {
+			ws.addEventListener('close', () => {
 				try {
 					abortController?.abort();
 					console.log('Disconnected from websocket');
@@ -217,8 +223,9 @@ export class AppManager {
 				}
 			});
 
-			ws.on('error', (err) => {
+			ws.addEventListener('error', (err) => {
 				console.warn('WS error:', err);
+				// this.notify('Websocket Error', err.message);
 			});
 		} catch (e) {
 			console.warn('Caught error in connect method:', e);
@@ -229,12 +236,12 @@ export class AppManager {
 		const config = await getUserConfig(user.userId);
 
 		const agent: Agent | undefined = valorantData.agents.find(
-			(a) => a.uuid === agentId
+			(a) => a.uuid === agentId,
 		)!;
 
 		const loadoutsToConsider = (function (
 			loadouts: Loadout[],
-			agentId?: string
+			agentId?: string,
 		) {
 			if (!agentId) {
 				console.log('No agent specified, considering all loadouts.');
@@ -242,7 +249,7 @@ export class AppManager {
 			}
 
 			const agentSpecificLoadouts = loadouts.filter((l) =>
-				l.agentIds.includes(agentId)
+				l.agentIds.includes(agentId),
 			);
 
 			if (agentSpecificLoadouts.length === 0) {
@@ -250,7 +257,7 @@ export class AppManager {
 					'No loadouts for',
 					agentId,
 					`(${agent.displayName})`,
-					'falling back to all loadouts.'
+					'falling back to all loadouts.',
 				);
 				return loadouts;
 			}
@@ -258,12 +265,12 @@ export class AppManager {
 			console.log(
 				'Only considering loadouts for',
 				agentId,
-				`(${agent.displayName})`
+				`(${agent.displayName})`,
 			);
 			return agentSpecificLoadouts;
 		})(
 			config.loadouts.filter((loadout) => loadout.enabled),
-			agentId
+			agentId,
 		);
 
 		if (loadoutsToConsider.length === 0) {
@@ -299,41 +306,65 @@ export class AppManager {
 					randomItem(loadout.playerCardIds) ||
 					'9fb348bc-41a0-91ad-8a3e-818035c4e561',
 			},
-			Sprays: [
-				{
-					EquipSlotID: '04af080a-4071-487b-61c0-5b9c0cfaac74',
-					SprayID:
-						randomItem(loadout.sprayIds.top) ||
-						'0a6db78c-48b9-a32d-c47a-82be597584c1',
-					SprayLevelID: null,
+			ActiveExpressions: [
+				randomItem([
+					...loadout.expressionIds.top.sprayIds.map((id) => ({
+						TypeID: entitlementTypeToIdMap.spray,
+						AssetID: id,
+					})),
+					...loadout.expressionIds.top.flexIds.map((id) => ({
+						TypeID: entitlementTypeToIdMap.flex,
+						AssetID: id,
+					})),
+				]) || {
+					TypeID: entitlementTypeToIdMap.spray,
+					AssetID: '0a6db78c-48b9-a32d-c47a-82be597584c1',
 				},
-				{
-					EquipSlotID: '5863985e-43ac-b05d-cb2d-139e72970014',
-					SprayID:
-						randomItem(loadout.sprayIds.right) ||
-						'0a6db78c-48b9-a32d-c47a-82be597584c1',
-					SprayLevelID: null,
+				randomItem([
+					...loadout.expressionIds.right.sprayIds.map((id) => ({
+						TypeID: entitlementTypeToIdMap.spray,
+						AssetID: id,
+					})),
+					...loadout.expressionIds.right.flexIds.map((id) => ({
+						TypeID: entitlementTypeToIdMap.flex,
+						AssetID: id,
+					})),
+				]) || {
+					TypeID: entitlementTypeToIdMap.spray,
+					AssetID: '0a6db78c-48b9-a32d-c47a-82be597584c1',
 				},
-				{
-					EquipSlotID: '7cdc908e-4f69-9140-a604-899bd879eed1',
-					SprayID:
-						randomItem(loadout.sprayIds.bottom) ||
-						'0a6db78c-48b9-a32d-c47a-82be597584c1',
-					SprayLevelID: null,
+				randomItem([
+					...loadout.expressionIds.bottom.sprayIds.map((id) => ({
+						TypeID: entitlementTypeToIdMap.spray,
+						AssetID: id,
+					})),
+					...loadout.expressionIds.bottom.flexIds.map((id) => ({
+						TypeID: entitlementTypeToIdMap.flex,
+						AssetID: id,
+					})),
+				]) || {
+					TypeID: entitlementTypeToIdMap.spray,
+					AssetID: '0a6db78c-48b9-a32d-c47a-82be597584c1',
 				},
-				{
-					EquipSlotID: '0814b2fe-4512-60a4-5288-1fbdcec6ca48',
-					SprayID:
-						randomItem(loadout.sprayIds.left) ||
-						'0a6db78c-48b9-a32d-c47a-82be597584c1',
-					SprayLevelID: null,
+				randomItem([
+					...loadout.expressionIds.left.sprayIds.map((id) => ({
+						TypeID: entitlementTypeToIdMap.spray,
+						AssetID: id,
+					})),
+					...loadout.expressionIds.left.flexIds.map((id) => ({
+						TypeID: entitlementTypeToIdMap.flex,
+						AssetID: id,
+					})),
+				]) || {
+					TypeID: entitlementTypeToIdMap.flex,
+					AssetID: 'af52b5a0-4a4c-03b2-c9d7-8187a08a2675',
 				},
 			],
 			Guns: Object.entries(loadout.weapons).map(([weaponId, { templates }]) => {
 				if (!templates.length) {
 					const weapon = weapons.find((w) => w.uuid === weaponId)!;
 					const skin = weapon.skins.find(
-						(s) => s.uuid === weapon.defaultSkinUuid
+						(s) => s.uuid === weapon.defaultSkinUuid,
 					)!;
 
 					return {
