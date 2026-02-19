@@ -1,16 +1,9 @@
 {
-	"editor.insertSpaces": false,
+	"files.trimTrailingWhitespace": true,
 	"editor.formatOnSave": true,
 	"editor.tabSize": 2,
-	"files.insertFinalNewline": true,
-	"files.trimTrailingWhitespace": true,
-	"typescript.tsdk": "node_modules/typescript/lib",
-	"search.exclude": {
-		"**/node_modules": true,
-		"**/bower_components": true,
-		"**/*.code-search": true,
-		"**/lib": true,
-		"**/build": true,
-		"**/dist": true
+	"editor.insertSpaces": false,
+	"editor.codeActionsOnSave": {
+		"source.organizeImports.biome": "explicit"
 	}
 }
