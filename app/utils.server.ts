@@ -23,6 +23,11 @@ async function exists(filename: string) {
 }
 
 export async function getLockfile() {
+	if (!process.env.LOCALAPPDATA) {
+		// Le client Riot n'existe que sous Windows
+		return;
+	}
+
 	const lockfilePath = path.resolve(
 		process.env.LOCALAPPDATA!,
 		'Riot Games',
@@ -64,6 +69,14 @@ export function randomItem<T>(array: T[]) {
 }
 
 export function getDefaultLoadout(): Loadout {
+	const loadout = getBaseDefaultLoadout();
+	for (const weapon of global.valorantData?.weapons ?? []) {
+		loadout.weapons[weapon.uuid] ??= { templates: [] };
+	}
+	return loadout;
+}
+
+function getBaseDefaultLoadout(): Loadout {
 	return {
 		id: randomUUID(),
 		name: 'Default Loadout',
@@ -199,7 +212,20 @@ export async function getUserConfig(userId: string): Promise<UserConfig> {
 		await writeTextFile(userFilenamePath, JSON.stringify(newConfig));
 	}
 
-	return migrateConfig(JSON.parse(await readTextFile(userFilenamePath)));
+	const config: UserConfig = migrateConfig(
+		JSON.parse(await readTextFile(userFilenamePath)),
+	);
+
+	// Armes ajoutées par Riot après la création de la config (ex. Bandit en
+	// 2026) : on les ajoute pour qu'elles apparaissent dans le configurateur.
+	const currentWeaponIds = global.valorantData?.weapons.map((w) => w.uuid) ?? [];
+	for (const loadout of config.loadouts) {
+		for (const weaponId of currentWeaponIds) {
+			loadout.weapons[weaponId] ??= { templates: [] };
+		}
+	}
+
+	return config;
 }
 
 export async function saveUserConfig(
@@ -222,127 +248,223 @@ const httpClient = axios.create({
 	httpsAgent: new https.Agent({
 		rejectUnauthorized: false,
 	}),
+	timeout: 10000,
 });
 
+type ShardRegion = { region: Regions; shard: Shards };
+
 declare global {
-	var userShardRegionCache: Map<string, { region: Regions; shard: Shards }>;
+	var userShardRegionCache: Map<string, ShardRegion>;
+	var pendingGetUser: Promise<User | null> | undefined;
 }
 
 global.userShardRegionCache =
-	global.userShardRegionCache ||
-	new Map<string, { region: Regions; shard: Shards }>();
+	global.userShardRegionCache || new Map<string, ShardRegion>();
 
-export async function getUser() {
+function localAuthHeader(password: string) {
+	return {
+		Authorization: `Basic ${Buffer.from(`riot:${password}`).toString('base64')}`,
+	};
+}
+
+function toRegion(value: string) {
+	return Object.values(Regions).find((r) => r.toLowerCase() === value.toLowerCase());
+}
+
+function toShard(value: string) {
+	return Object.values(Shards).find((s) => s.toLowerCase() === value.toLowerCase());
+}
+
+function errorSummary(e: unknown) {
+	if (isAxiosError(e)) {
+		return e.response ? `HTTP ${e.response.status}` : e.code || e.message;
+	}
+	return String(e);
+}
+
+/**
+ * Le jeu est-il réellement lancé (et pas seulement le Riot Client) ?
+ * Renvoie aussi les arguments de lancement de Valorant.
+ */
+async function getValorantSession(port: string, password: string) {
+	const { data } = await httpClient.get<
+		Record<
+			string,
+			{ productId: string; launchConfiguration?: { arguments?: string[] } }
+		>
+	>(`https://127.0.0.1:${port}/product-session/v1/external-sessions`, {
+		headers: localAuthHeader(password),
+	});
+
+	return Object.values(data).find((session) => session.productId === 'valorant');
+}
+
+/** Région/shard lus dans le log du jeu (ex. https://glz-eu-1.eu.a.pvp.net). */
+async function readShardRegionFromLog(): Promise<ShardRegion | null> {
 	try {
-		const lockfile = await getLockfile();
+		const logPath = path.resolve(
+			process.env.LOCALAPPDATA!,
+			'VALORANT',
+			'Saved',
+			'Logs',
+			'ShooterGame.log',
+		);
+		const content = await fsPromise.readFile(logPath, 'utf8');
+		const matches = [
+			...content.matchAll(/https:\/\/glz-([a-z]+)-1\.([a-z]+)\.a\.pvp\.net/gi),
+		];
+		const last = matches.at(-1);
+		if (!last) return null;
 
-		if (!lockfile) {
-			return null;
-		}
-
-		const { port, password } = lockfile;
-
-		const tokens = (
-			await httpClient.get<{
-				accessToken: string;
-				entitlements: unknown[];
-				issuer: string;
-				subject: string;
-				token: string;
-			}>(`https://127.0.0.1:${port}/entitlements/v1/token`, {
-				headers: {
-					Authorization: `Basic ${Buffer.from(`riot:${password}`).toString(
-						'base64',
-					)}`,
-				},
-			})
-		).data;
-
-		const shardRegionMap = [
-			[Shards.NorthAmerica, Regions.NorthAmerica],
-			[Shards.NorthAmerica, Regions.LatinAmerica],
-			[Shards.NorthAmerica, Regions.Brazil],
-			[Shards.PBE, Regions.NorthAmerica],
-			[Shards.Europe, Regions.Europe],
-			[Shards.AsiaPacific, Regions.AsiaPacific],
-			[Shards.Korea, Regions.Korea],
-		] as const;
-
-		const res =
-			global.userShardRegionCache.get(tokens.subject) ||
-			(await (async function findRegionAndShard(attempts = 0): Promise<{
-				region: Regions;
-				shard: Shards;
-			} | null> {
-				for (const [shard, region] of shardRegionMap) {
-					try {
-						const response = await httpClient.get(
-							`https://glz-${region}-1.${shard}.a.pvp.net/parties/v1/players/${tokens.subject}`,
-							{
-								headers: generateRequestHeaders({
-									accessToken: tokens.accessToken,
-									entitlementsToken: tokens.token,
-									riotClientVersion:
-										global.valorantData.version.riotClientVersion,
-								}),
-							},
-						);
-
-						if (!response.data.Subject) {
-							continue;
-						}
-
-						return {
-							region,
-							shard,
-						};
-					} catch (e) {
-						if (isAxiosError(e)) {
-							switch (e.response?.status) {
-								case 404: {
-									console.log('tried', region, shard, 'got 404, continuing');
-									break;
-								}
-								default: {
-									console.warn(
-										'Caught error trying to get user for region/shard detection',
-										region,
-										shard,
-										e,
-									);
-									break;
-								}
-							}
-						}
-					}
-				}
-
-				if (attempts < 5) {
-					console.log('Failed to find user region and shard, retrying in 2.5s');
-					await new Promise((resolve) => setTimeout(resolve, 2500));
-					return findRegionAndShard(attempts + 1);
-				}
-
-				return null;
-			})());
-
-		if (!res) {
-			return null;
-		}
-
-		console.log('Found user region and shard', res);
-		userShardRegionCache.set(tokens.subject, res);
-
-		return new User({
-			riotClientVersion: global.valorantData.version.riotClientVersion,
-			accessToken: tokens.accessToken,
-			entitlementsToken: tokens.token,
-			region: res.region,
-			shard: res.shard,
-			userId: tokens.subject,
-		});
-	} catch (e) {
-		console.warn('Caught error trying to get user', e);
+		const region = toRegion(last[1]);
+		const shard = toShard(last[2]);
+		return region && shard ? { region, shard } : null;
+	} catch {
 		return null;
 	}
+}
+
+/** Région/shard depuis les arguments de lancement (-ares-deployment=eu). */
+function readShardRegionFromArgs(args: string[] = []): ShardRegion | null {
+	const deployment = args
+		.find((a) => a.startsWith('-ares-deployment='))
+		?.split('=')[1];
+	if (!deployment) return null;
+
+	const shard = toShard(deployment);
+	// Les shards EU/AP/KR n'ont qu'une région ; NA peut être NA, LATAM ou BR.
+	const region = shard && shard !== Shards.NorthAmerica ? toRegion(deployment) : undefined;
+	return shard && region ? { region, shard } : null;
+}
+
+/** Dernier recours : on teste chaque région une seule fois. */
+async function probeShardRegion(tokens: {
+	accessToken: string;
+	token: string;
+	subject: string;
+}): Promise<ShardRegion | null> {
+	const candidates = [
+		[Shards.Europe, Regions.Europe],
+		[Shards.NorthAmerica, Regions.NorthAmerica],
+		[Shards.NorthAmerica, Regions.LatinAmerica],
+		[Shards.NorthAmerica, Regions.Brazil],
+		[Shards.AsiaPacific, Regions.AsiaPacific],
+		[Shards.Korea, Regions.Korea],
+	] as const;
+
+	for (const [shard, region] of candidates) {
+		try {
+			const response = await httpClient.get(
+				`https://glz-${region}-1.${shard}.a.pvp.net/parties/v1/players/${tokens.subject}`,
+				{
+					headers: generateRequestHeaders({
+						accessToken: tokens.accessToken,
+						entitlementsToken: tokens.token,
+						riotClientVersion: global.valorantData.version.riotClientVersion,
+					}),
+				},
+			);
+			if (response.data?.Subject) {
+				return { region, shard };
+			}
+		} catch (e) {
+			console.log(`Région ${region}/${shard} : ${errorSummary(e)}`);
+		}
+	}
+
+	return null;
+}
+
+let lastStatus = '';
+function logStatus(message: string) {
+	// Évite de répéter le même message toutes les 5 secondes
+	if (message !== lastStatus) {
+		console.log(message);
+		lastStatus = message;
+	}
+}
+
+async function resolveUser(): Promise<User | null> {
+	const lockfile = await getLockfile();
+
+	if (!lockfile) {
+		logStatus('Riot Client non détecté : lancez Valorant.');
+		return null;
+	}
+
+	const { port, password } = lockfile;
+
+	let session: Awaited<ReturnType<typeof getValorantSession>>;
+	try {
+		session = await getValorantSession(port, password);
+	} catch (e) {
+		logStatus(`Riot Client injoignable (${errorSummary(e)}), nouvel essai...`);
+		return null;
+	}
+
+	if (!session) {
+		logStatus('Riot Client ouvert mais Valorant pas encore lancé, en attente...');
+		return null;
+	}
+
+	let tokens: {
+		accessToken: string;
+		token: string;
+		subject: string;
+	};
+	try {
+		tokens = (
+			await httpClient.get(`https://127.0.0.1:${port}/entitlements/v1/token`, {
+				headers: localAuthHeader(password),
+			})
+		).data;
+	} catch (e) {
+		logStatus(`Jetons Riot indisponibles (${errorSummary(e)}), en attente...`);
+		return null;
+	}
+
+	let res = global.userShardRegionCache.get(tokens.subject) ?? null;
+
+	if (!res) {
+		res =
+			(await readShardRegionFromLog()) ??
+			readShardRegionFromArgs(session.launchConfiguration?.arguments) ??
+			(await probeShardRegion(tokens));
+
+		if (!res) {
+			logStatus(
+				'Région introuvable pour le moment (le jeu est peut-être encore en chargement), nouvel essai...',
+			);
+			return null;
+		}
+
+		console.log('Région détectée :', res.region, '/ shard :', res.shard);
+		global.userShardRegionCache.set(tokens.subject, res);
+	}
+
+	logStatus('Connecté à Valorant.');
+
+	return new User({
+		riotClientVersion: global.valorantData.version.riotClientVersion,
+		accessToken: tokens.accessToken,
+		entitlementsToken: tokens.token,
+		region: res.region,
+		shard: res.shard,
+		userId: tokens.subject,
+	});
+}
+
+export async function getUser() {
+	// Plusieurs pages/onglets peuvent demander l'utilisateur en même temps :
+	// on partage la même recherche au lieu d'en lancer une par requête.
+	global.pendingGetUser ??= resolveUser()
+		.catch((e) => {
+			console.warn('Erreur en récupérant le joueur :', errorSummary(e));
+			return null;
+		})
+		.finally(() => {
+			global.pendingGetUser = undefined;
+		});
+
+	return global.pendingGetUser;
 }

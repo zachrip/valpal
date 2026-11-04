@@ -1,7 +1,7 @@
 export enum Regions {
 	AsiaPacific = 'AP',
 	Europe = 'EU',
-	Korea = 'KO',
+	Korea = 'KR',
 	NorthAmerica = 'NA',
 	LatinAmerica = 'LATAM',
 	Brazil = 'BR',

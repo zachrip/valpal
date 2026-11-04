@@ -16,14 +16,45 @@ import axios from 'axios';
 
 declare global {
 	var appManager: AppManager;
+	var valpalInitPromise: Promise<void> | undefined;
+}
+
+async function loadSkinData() {
+	for (let attempt = 1; ; attempt++) {
+		try {
+			await initSkinData();
+			return;
+		} catch (e) {
+			if (attempt >= 3) {
+				throw new Error(
+					`Impossible de télécharger les données depuis valorant-api.com (${e}). Vérifiez votre connexion Internet.`,
+				);
+			}
+			console.warn(`valorant-api.com injoignable, nouvel essai (${attempt}/3)...`);
+			await new Promise((resolve) => setTimeout(resolve, 2000));
+		}
+	}
+}
+
+// En dev, init() est appelé à chaque requête (rechargement à chaud) :
+// on ne télécharge les données et on ne crée l'AppManager qu'une seule fois.
+function initOnce() {
+	global.valpalInitPromise ??= (async () => {
+		await loadSkinData();
+		global.appManager = new AppManager();
+	})().catch((e) => {
+		global.valpalInitPromise = undefined;
+		throw e;
+	});
+
+	return global.valpalInitPromise;
 }
 
 export async function init() {
-	await initSkinData();
+	const firstInit = !global.valpalInitPromise;
+	await initOnce();
 
-	global.appManager = new AppManager();
-
-	if (process.env.NODE_ENV === 'production') {
+	if (firstInit && process.env.NODE_ENV === 'production') {
 		try {
 			const { data } = await axios.get(
 				`https://api.github.com/repos/zachrip/valpal/releases/latest`,
@@ -47,7 +78,7 @@ export async function init() {
 
 	app.use(
 		createRequestHandler({
-			// @ts-expect-error - virtual module provided by React Router at build time
+			// @ts-ignore - virtual module provided by React Router at build time
 			build: () => import('virtual:react-router/server-build'),
 			getLoadContext() {
 				return {

@@ -1,7 +1,5 @@
-import { NotifyIcon, Icon, Menu } from 'not-the-systray';
 import {
 	entitlementTypeToIdMap,
-	type Agent,
 	type ValorantLoadout,
 } from 'types';
 import type { Loadout } from '~/utils';
@@ -12,11 +10,38 @@ import {
 	randomItem,
 } from '~/utils.server';
 import type { User } from './userman';
-import { exec } from 'child_process';
+import { createTray, type Tray } from './tray';
 import WebSocket from 'ws';
+import { isAxiosError } from 'axios';
 
-function open(url: string) {
-	exec(`start ${url}`);
+function describeError(e: unknown) {
+	if (isAxiosError(e)) {
+		return `${e.config?.method?.toUpperCase()} ${e.config?.url?.split('?')[0]} -> ${e.response ? `HTTP ${e.response.status}` : e.code}`;
+	}
+	return e instanceof Error ? e.message : String(e);
+}
+
+function sameId(a: string | undefined, b: string | undefined) {
+	return !!a && !!b && a.toLowerCase() === b.toLowerCase();
+}
+
+/** Nom de l'agent, ou son identifiant brut s'il est inconnu (nouvel agent...). */
+function agentLabel(agentId: string | undefined) {
+	if (!agentId) return 'agent inconnu';
+	const agent = valorantData.agents.find((a) => sameId(a.uuid, agentId));
+	return agent ? agent.displayName : `agent inconnu (${agentId})`;
+}
+
+function countSkinDifferences(
+	sent: ValorantLoadout['Guns'],
+	actual: ValorantLoadout['Guns'] | undefined,
+): number | null {
+	if (!Array.isArray(actual)) return null;
+	const actualById = new Map(actual.map((g) => [g.ID, g]));
+	return sent.filter((g) => {
+		const a = actualById.get(g.ID);
+		return !a || a.SkinID !== g.SkinID || a.ChromaID !== g.ChromaID;
+	}).length;
 }
 
 function tryParseJson<T>(json: string): T | null {
@@ -27,98 +52,37 @@ function tryParseJson<T>(json: string): T | null {
 	}
 }
 
-const notificationIcon = Icon.load(Icon.ids.info, Icon.large);
-
-const loadoutShufflingItemId = 1;
-const agentDetectionItemId = 2;
-const openItemId = 3;
-const quitItemId = 4;
-
 export class AppManager {
 	private isAutoShuffleEnabled = true;
 	private isAgentDetectionEnabled = true;
 
-	private appIcon = new NotifyIcon({
-		icon: Icon.load(Icon.ids.app, Icon.small),
-		tooltip: 'ValPal',
-		onSelect: ({ mouseX, mouseY }) => {
-			this.handleMenu(mouseX, mouseY);
-		},
-	});
-
-	private menu = new Menu([
-		{
-			id: openItemId,
-			text: 'Open ValPal',
-		},
-		{
-			id: loadoutShufflingItemId,
-			text: 'Loadout shuffling',
-			checked: true,
-		},
-		{
-			id: agentDetectionItemId,
-			text: 'Agent specific loadouts',
-			checked: true,
-		},
-		{
-			id: quitItemId,
-			text: 'Quit',
-		},
-	]);
+	private tray: Tray;
+	private wsErrorLogged = false;
 
 	constructor() {
+		this.tray = createTray(
+			`http://localhost:${process.env.PORT || '3000'}`,
+			{
+				onToggleShuffle: (enabled) => {
+					this.isAutoShuffleEnabled = enabled;
+				},
+				onToggleAgentDetection: (enabled) => {
+					this.isAgentDetectionEnabled = enabled;
+				},
+			},
+		);
 		this.connect();
 	}
 
 	notify(title: string, text: string) {
-		this.appIcon.update({
-			notification: {
-				icon: notificationIcon,
-				title,
-				text,
-			},
-		});
+		this.tray.notify(title, text);
 	}
-
-	private handleMenu = (x: number, y: number) => {
-		const id = this.menu.showSync(x, y);
-		switch (id) {
-			case null: {
-				break;
-			}
-			case openItemId: {
-				open('http://localhost:3000');
-				break;
-			}
-			case loadoutShufflingItemId: {
-				const { checked } = this.menu.get(loadoutShufflingItemId);
-				this.menu.update(loadoutShufflingItemId, { checked: !checked });
-				this.isAutoShuffleEnabled = !checked;
-				break;
-			}
-			case agentDetectionItemId: {
-				const { checked } = this.menu.get(agentDetectionItemId);
-				this.menu.update(agentDetectionItemId, { checked: !checked });
-				this.isAgentDetectionEnabled = !checked;
-				break;
-			}
-			case quitItemId: {
-				this.appIcon.remove();
-				process.exit(0);
-				break;
-			}
-		}
-	};
 
 	async connect() {
 		try {
-			console.log('Attempting to connect to websocket');
-
 			const lockfile = await getLockfile();
 
 			if (!lockfile) {
-				console.log('Lockfile not found');
 				setTimeout(() => {
 					this.connect();
 				}, 5000);
@@ -134,10 +98,11 @@ export class AppManager {
 
 			ws.addEventListener('open', async () => {
 				try {
-					console.log('Connected to websocket');
+					console.log('Connecté au Riot Client, détection des parties active.');
+					this.wsErrorLogged = false;
 					ws.send(JSON.stringify([5, 'OnJsonApiEvent']));
 				} catch (e) {
-					console.warn('Caught error in websocket open handler', e);
+					console.warn('Erreur websocket (open) :', describeError(e));
 				}
 			});
 
@@ -168,19 +133,17 @@ export class AppManager {
 					const uriMatch = uri.match(/\/pregame\/v1\/matches\/(.*)/);
 					if (eventType === 'Create' && uriMatch && uriMatch[1]) {
 						const matchId = uriMatch[1];
-						console.log('Match found:', matchId);
 
 						const existingState = matchCharacterSelectionStates.get(matchId);
 
 						if (existingState === 'locked') {
-							console.log('Match already locked, no need to process');
 							return;
 						}
 
 						const user = await getUser();
 
 						if (!user) {
-							console.log('User not found');
+							console.log('Partie détectée mais joueur introuvable.');
 							return;
 						}
 
@@ -196,90 +159,87 @@ export class AppManager {
 							newState &&
 							newState !== matchCharacterSelectionStates.get(matchId)
 						) {
-							if (newState === 'locked' && this.isAutoShuffleEnabled) {
-								this.equip(
-									user,
-									this.isAgentDetectionEnabled ? player.CharacterID : undefined,
-								);
-							}
-
 							matchCharacterSelectionStates.set(matchId, newState);
+
+							if (newState === 'locked') {
+								console.log(`Agent verrouillé : ${agentLabel(player.CharacterID)}`);
+
+								if (!this.isAutoShuffleEnabled) {
+									console.log('Changement auto désactivé, rien à équiper.');
+								} else {
+									try {
+										await this.equip(
+											user,
+											this.isAgentDetectionEnabled
+												? player.CharacterID
+												: undefined,
+										);
+									} catch (e) {
+										console.warn('Échec de l\'équipement :', describeError(e));
+									}
+								}
+							}
 						}
 					}
 				} catch (e) {
-					console.warn('Caught error in websocket message handler:', e);
+					console.warn('Erreur pendant la sélection d\'agent / l\'équipement :', describeError(e));
 				}
 			});
 
 			ws.addEventListener('close', () => {
 				try {
 					abortController?.abort();
-					console.log('Disconnected from websocket');
 					setTimeout(() => {
 						this.connect();
 					}, 5000);
 				} catch (e) {
-					console.warn('Caught error in websocket close handler:', e);
+					console.warn('Erreur websocket (close) :', describeError(e));
 				}
 			});
 
 			ws.addEventListener('error', (err) => {
-				console.warn('WS error:', err);
+				if (!this.wsErrorLogged) {
+					console.warn('Connexion au Riot Client impossible :', err.message);
+					this.wsErrorLogged = true;
+				}
 				// this.notify('Websocket Error', err.message);
 			});
 		} catch (e) {
-			console.warn('Caught error in connect method:', e);
+			console.warn('Erreur de connexion :', describeError(e));
 		}
 	}
 
 	equip = async (user: User, agentId?: string) => {
 		const config = await getUserConfig(user.userId);
+		const enabledLoadouts = config.loadouts.filter((loadout) => loadout.enabled);
 
-		const agent: Agent | undefined = valorantData.agents.find(
-			(a) => a.uuid === agentId,
-		)!;
-
-		const loadoutsToConsider = (function (
-			loadouts: Loadout[],
-			agentId?: string,
-		) {
+		const loadoutsToConsider = (() => {
 			if (!agentId) {
-				console.log('No agent specified, considering all loadouts.');
-				return loadouts;
+				return enabledLoadouts;
 			}
 
-			const agentSpecificLoadouts = loadouts.filter((l) =>
-				l.agentIds.includes(agentId),
+			const agentSpecificLoadouts = enabledLoadouts.filter((l) =>
+				l.agentIds.some((id) => sameId(id, agentId)),
 			);
 
 			if (agentSpecificLoadouts.length === 0) {
 				console.log(
-					'No loadouts for',
-					agentId,
-					`(${agent.displayName})`,
-					'falling back to all loadouts.',
+					`Aucun loadout spécifique à ${agentLabel(agentId)}, choix parmi tous les loadouts activés.`,
 				);
-				return loadouts;
+				return enabledLoadouts;
 			}
 
-			console.log(
-				'Only considering loadouts for',
-				agentId,
-				`(${agent.displayName})`,
-			);
+			console.log(`Loadouts spécifiques à ${agentLabel(agentId)} utilisés.`);
 			return agentSpecificLoadouts;
-		})(
-			config.loadouts.filter((loadout) => loadout.enabled),
-			agentId,
-		);
+		})();
 
 		if (loadoutsToConsider.length === 0) {
-			console.log('No loadouts, not equipping.');
+			console.log('Aucun loadout activé, rien à équiper.');
 			return;
 		}
 
 		const loadout = randomItem(loadoutsToConsider);
-		this.equipLoadout(user, loadout);
+		await this.equipLoadout(user, loadout);
 	};
 
 	async equipLoadout(user: User, loadout: Loadout) {
@@ -305,6 +265,9 @@ export class AppManager {
 				PlayerCardID:
 					randomItem(loadout.playerCardIds) ||
 					'9fb348bc-41a0-91ad-8a3e-818035c4e561',
+				PlayerTitleID:
+					randomItem(loadout.playerTitleIds) ||
+					existingLoadout.Identity.PlayerTitleID,
 			},
 			ActiveExpressions: [
 				randomItem([
@@ -360,12 +323,28 @@ export class AppManager {
 					AssetID: 'af52b5a0-4a4c-03b2-c9d7-8187a08a2675',
 				},
 			],
-			Guns: Object.entries(loadout.weapons).map(([weaponId, { templates }]) => {
+			// On part de la liste complète renvoyée par Riot : une arme absente
+			// de la config (ex. Bandit, ajouté en 2026) garde son skin actuel au
+			// lieu de disparaître du loadout envoyé.
+			Guns: existingLoadout.Guns.map((gun) => {
+				const weaponId = gun.ID;
+				const configured = loadout.weapons[weaponId];
+
+				if (!configured) {
+					return gun;
+				}
+
+				const { templates } = configured;
+
 				if (!templates.length) {
-					const weapon = weapons.find((w) => w.uuid === weaponId)!;
-					const skin = weapon.skins.find(
+					const weapon = weapons.find((w) => w.uuid === weaponId);
+					const skin = weapon?.skins.find(
 						(s) => s.uuid === weapon.defaultSkinUuid,
-					)!;
+					);
+
+					if (!skin) {
+						return gun;
+					}
 
 					return {
 						ID: weaponId,
@@ -408,7 +387,35 @@ export class AppManager {
 			}),
 		};
 
-		console.log('Equipping loadout', loadoutToEquip);
-		await user.equipLoadout(loadoutToEquip);
+		console.log(`Équipement du loadout "${loadout.name}"...`);
+		const saved = await user.equipLoadout(loadoutToEquip);
+
+		const notApplied = countSkinDifferences(loadoutToEquip.Guns, saved?.Guns);
+		if (notApplied === null) {
+			console.log('Loadout envoyé à Riot.');
+		} else if (notApplied === 0) {
+			console.log('Loadout accepté par Riot.');
+		} else {
+			console.warn(
+				`Riot a accepté la requête mais ${notApplied} arme(s) n'ont pas pris le skin demandé.`,
+			);
+		}
+
+		// Vérification différée : si le jeu remet l'ancien loadout, on le saura.
+		setTimeout(async () => {
+			try {
+				const current = await user.getLoadout();
+				const reverted = countSkinDifferences(loadoutToEquip.Guns, current.Guns);
+				if (reverted) {
+					console.warn(
+						`Attention : ${reverted} arme(s) sont revenues à un autre skin depuis l'équipement (remis par le jeu ?).`,
+					);
+				} else {
+					console.log('Vérification : le loadout est toujours en place.');
+				}
+			} catch (e) {
+				console.log('Vérification du loadout impossible :', describeError(e));
+			}
+		}, 45_000);
 	}
 }

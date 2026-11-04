@@ -1,5 +1,4 @@
 import { redirect } from 'react-router';
-import { useLoaderData } from 'react-router';
 import { getUser } from '~/utils.server';
 
 export async function loader() {
@@ -13,7 +12,5 @@ export async function loader() {
 }
 
 export default function Index() {
-	const { userId } = useLoaderData<typeof loader>();
-
-	return <div>{userId}</div>;
+	return null;
 }

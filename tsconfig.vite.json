@@ -9,6 +9,7 @@
   ],
   "compilerOptions": {
     "composite": true,
+    "noEmit": true,
     "strict": true,
     "lib": ["DOM", "DOM.Iterable", "ES2022"],
     "types": ["vite/client"],

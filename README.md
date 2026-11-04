@@ -23,11 +23,32 @@ Configurator main screen showing an agent specific loadout
 
 This app is based around [Remix](https://remix.run) and packaged using [pkg](https://github.com/vercel/pkg). It uses the local websocket/http server that Valorant runs to authenticate and detect when matches start.
 
+# Run locally (from source)
+
+Requirements: Windows (the game and Riot Client are needed for loadouts to be applied) and Node.js 22.18+ (LTS recommended; `server.ts` runs with Node's built-in TypeScript support).
+
+Rollup and esbuild are overridden with their WebAssembly builds (`@rollup/wasm-node`, `esbuild-wasm`) so no unsigned native binaries are needed: this lets the app run on Windows with Smart App Control / application control policies enabled.
+
+Quick start on Windows: double-click `start-valpal.bat` (installs dependencies on first run, starts the server and opens the browser).
+
+Manually:
+
+1. `npm install`
+2. `npm run dev`
+3. Run Valorant
+4. Open [http://localhost:3000](http://localhost:3000)
+
+Production-like run: `npm run build:web` then `npm start`. `npm run build` additionally packages `dist/valpal.exe` (Windows only, needs `editbin.exe` from Visual Studio).
+
+The system tray icon (`not-the-systray`) is an optional Windows-only dependency: if it can't be loaded, the app still runs and notifications are printed to the console.
+
 # Contribute
 
 1. Clone this repo
-2. `npm install`
-3. `npm run dev`
-4. Run Valorant
-5. Open [http://localhost:3000](http://localhost:3000)
+2. Follow "Run locally" above
 6. The configurator code mostly lives in app/ - the rest of the stuff is in server/ (such as the game detection, system tray stuff, etc)
+
+# Credits
+
+- Original project by [zachrip](https://github.com/zachrip/valpal), all the core features (loadout configurator, agent detection, randomization) are his work.
+- October 2026 update (runs on current Node/npm, Windows Smart App Control compatibility, reliable region detection) by Soel, with fixes written by Claude (Anthropic's AI assistant).

@@ -234,7 +234,7 @@ export class User {
 	}
 
 	async equipLoadout(loadout: ValorantLoadout) {
-		const { data } = await httpClient.put(
+		const { data } = await httpClient.put<Partial<ValorantLoadout>>(
 			`${getPlayerDataServiceUrl(this.region)}/personalization/v3/players/${
 				this.userId
 			}/playerloadout`,

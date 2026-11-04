@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { JSX, ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 
 export const Gallery = <T extends Array<{ duration: number }>>({

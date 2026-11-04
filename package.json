@@ -4,13 +4,14 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"build": "npm run build:react-router && npm run build:server && npm run pkg",
+		"dev": "cross-env NODE_ENV=development node server.ts",
+		"build": "npm run build:web && npm run pkg",
+		"build:web": "npm run build:react-router && npm run build:server",
 		"build:react-router": "react-router build",
-		"build:server": "esbuild --platform=node --format=cjs ./server.ts --bundle --outfile=build/server.js --define:process.env.NODE_ENV=\\\"production\\\" --external:not-the-systray",
-		"dev": "cross-env NODE_ENV=development node --experimental-strip-types --experimental-transform-types --watch-path=./server.ts server.ts",
-		"start": "node --experimental-strip-types --experimental-transform-types server.ts",
+		"build:server": "esbuild --platform=node --format=cjs ./server.ts --bundle --outfile=build/server.cjs --define:process.env.NODE_ENV=\\\"production\\\" --external:not-the-systray",
+		"start": "cross-env NODE_ENV=production node build/server.cjs",
 		"typecheck": "react-router typegen && tsc -b",
-		"pkg": "pkg -c pkg.json build/server.js --output dist/valpal.exe && editbin.exe /subsystem:windows dist/valpal.exe"
+		"pkg": "pkg -c pkg.json build/server.cjs --output dist/valpal.exe && editbin.exe /subsystem:windows dist/valpal.exe"
 	},
 	"dependencies": {
 		"@radix-ui/react-dialog": "^1.1.4",
@@ -22,11 +23,11 @@
 		"express": "^4.21.1",
 		"isbot": "^5.1.17",
 		"morgan": "^1.10.0",
-		"not-the-systray": "^0.3.1",
 		"react": "^19.0.0",
 		"react-dom": "^19.0.0",
 		"react-router": "^7.1.1",
 		"ws": "^8.18.0",
+		"zod": "^3.25.76",
 		"zod-form-data": "^2.0.5"
 	},
 	"devDependencies": {
@@ -43,12 +44,22 @@
 		"@yao-pkg/pkg": "^6.2.0",
 		"autoprefixer": "^10.4.20",
 		"cross-env": "^7.0.3",
-		"esbuild": "^0.24.2",
+		"esbuild": "npm:esbuild-wasm@0.25.12",
 		"postcss": "^8.4.49",
 		"tailwind-scrollbar": "^3.1.0",
 		"tailwindcss": "^3.4.16",
 		"typescript": "^5.7.2",
 		"vite": "^5.4.11",
 		"vite-tsconfig-paths": "^5.1.4"
+	},
+	"optionalDependencies": {
+		"not-the-systray": "^0.3.1"
+	},
+	"engines": {
+		"node": ">=22.18"
+	},
+	"overrides": {
+		"rollup": "npm:@rollup/wasm-node@^4.64.3",
+		"esbuild": "npm:esbuild-wasm@0.25.12"
 	}
 }
